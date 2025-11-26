@@ -8,1123 +8,163 @@
     <link rel="manifest" href="data:application/json;base64,eyJkZWZhdWx0X2xvY2FsZSI6Imh1IiwibmFtZSI6IlJlenNpIE55aWx2XHUwMGUxbnRcdTAwZjMiLCJzaG9ydF9uYW1lIjoiUmV6c2kgQXBwIiwiZGVzY3JpcHRpb24iOiJHYXogVmlsbGFueSBWXHUwMGUxeiBLXHUwMGY2bHRzXHUwMGU5Z2tcdTAwZjYiLCJzdGFydF91cmwiOiIuL2luZGV4Lmh0bWwiLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsInRoZW1lX2NvbG9yIjoiIzM0OThlYiIsImJhY2tncm91bmRfY29sb3IiOiIjZDRlMmYyIiwiaWNvbnMiOiIifQ==">
     <meta name="theme-color" content="#3498eb">
     
+    <!-- Tailwind CSS a stílusokhoz -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, orderBy, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-lite.js";
-
-        // --- MINTA VÁLTOZÓK AZ OFFLINE TESZTELÉSHEZ ---
-        // VALÓS ALKALMAZÁSBAN EZEKET A HELYI RENDSZER BIZTOSÍTJA.
-        const __app_id = 'rezsiapp-default-id';
-        const firebaseConfig = {
-  apiKey: "AIzaSyAkXnuZDqZVnag2G1pTB4mWwKwrjeEinOQ",
-  authDomain: "rezsi-nyilvantarto.firebaseapp.com",
-  projectId: "rezsi-nyilvantarto",
-  storageBucket: "rezsi-nyilvantarto.firebasestorage.app",
-  messagingSenderId: "917315288002",
-  appId: "1:917315288002:web:8633213d831cbd6fe3f45b",
-  measurementId: "G-RNXJ4MXTQY"
-};
-app = initializeApp(firebaseConfig);
-auth = getAuth(app);
-db = getFirestore(app);
-        const __initial_auth_token = undefined;
-
-        // --- GLOBÁLIS VÁLTOZÓK ---
-        let app, db, auth;
-        let userId = null;
-        let isAuthReady = false;
-        let currentMonthId = null;
-        let billsSubscription = null;
-        let recurringBillsSubscription = null;
-        let metersSubscription = null; // ÚJ: Meter listener
-        let recurringBillsCache = [];
-        let meterReadingsCache = []; // ÚJ: Meter readings cache
-
-        // --- SEGÉDFUNKCIÓK ---
-        window.formatHUF = (amount) => {
-            if (amount === null || amount === undefined) return '';
-            if (amount < 0) {
-                return `- ${new Intl.NumberFormat('hu-HU', { style: 'currency', currency: 'HUF', maximumFractionDigits: 0 }).format(Math.abs(amount))}`;
-            }
-            return new Intl.NumberFormat('hu-HU', { style: 'currency', currency: 'HUF', maximumFractionDigits: 0 }).format(amount);
-        };
-
-        window.formatHUFNoCurrency = (amount) => {
-            if (amount === null || amount === undefined) return '';
-            return new Intl.NumberFormat('hu-HU', { maximumFractionDigits: 0 }).format(amount);
-        };
-
-        window.formatDueDay = (day) => {
-            if (day && day >= 1 && day <= 31) {
-                return `${day}. nap`;
-            }
-            return 'Nincs megadva';
-        };
-
-        // --- FIREBASE PATH FUNKCIÓK ---
-        const getMonthCollectionRef = (monthId) => {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            return collection(db, `/artifacts/${appId}/users/${userId}/months/${monthId}/bills`);
-        };
-
-        const getRecurringCollectionRef = () => {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            return collection(db, `/artifacts/${appId}/users/${userId}/recurringBills`);
-        };
-        
-        // ÚJ: Meters Collection Path
-        const getMetersCollectionRef = () => {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            return collection(db, `/artifacts/${appId}/users/${userId}/meters`);
-        };
-        
-        const getBillPath = (monthId, billId) => {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            return doc(db, `/artifacts/${appId}/users/${userId}/months/${monthId}/bills/${billId}`);
-        };
-
-        const getRecurringBillPath = (billId) => {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            return doc(db, `/artifacts/${appId}/users/${userId}/recurringBills/${billId}`);
-        };
-
-        // --- FIREBASE INDÍTÁS ÉS ADAT BETÖLTÉS ---
-const setupFirebaseAndAuth = async () => {
-    try {
-        setLogLevel('error');
-
-                document.getElementById('app-status').textContent = 'Hitelesítés...';
-
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        isAuthReady = true;
-                        document.getElementById('app-status').textContent = `Felhasználó: ${userId.substring(0, 8)}... Betöltés...`;
-                        await loadInitialData();
-                    } else {
-                        try {
-                            const result = await signInAnonymously(auth);
-                            userId = result.user.uid;
-                            isAuthReady = true;
-                            document.getElementById('app-status').textContent = `Felhasználó: ${userId.substring(0, 8)}... Betöltés...`;
-                            await loadInitialData();
-                        } catch (error) {
-                            document.getElementById('app-status').innerHTML = `<span class="text-red-500">Hiba: Nem sikerült bejelentkezni. ${error.message}</span>`;
-                            console.error("Authentication error:", error);
-                        }
-                    }
-                });
-
-            } catch (error) {
-                document.getElementById('app-status').innerHTML = `<span class="text-red-500">Kritikus hiba: Firebase beállítás nem sikerült.</span>`;
-                console.error("Initialization error:", error);
-            }
-        };
-
-        const loadInitialData = async () => {
-            if (!isAuthReady) return;
-
-            // 1. Recurring Bills betöltése (cache)
-            const qRecurring = query(getRecurringCollectionRef());
-            recurringBillsSubscription = onSnapshot(qRecurring, (snapshot) => {
-                recurringBillsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                loadMonthsList();
-            });
-            
-            // 2. ÚJ: Meter Readings betöltése (cache)
-            const qMeters = query(getMetersCollectionRef());
-            metersSubscription = onSnapshot(qMeters, (snapshot) => {
-                meterReadingsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                // Frissítsük a mérőóra nézetet, ha már van kiválasztott hónap
-                if (currentMonthId && !currentMonthId.startsWith('YEAR-SUMMARY')) {
-                    renderMeterReadings(currentMonthId);
-                }
-            });
-        };
-        
-        // --- HÓNAP KEZELÉS ---
-
-        const loadMonthsList = async () => {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            const allBillsCollectionRefs = collection(db, `/artifacts/${appId}/users/${userId}/months`);
-            const monthIDs = [];
-
-            try {
-                const monthDocs = await getDocs(allBillsCollectionRefs);
-                monthDocs.forEach(doc => {
-                    if (doc.id.match(/^\d{4}-\d{2}$/)) {
-                        monthIDs.push(doc.id);
-                    }
-                });
-
-                if (monthIDs.length === 0) {
-                    const currentYear = new Date().getFullYear();
-                    const currentMonth = String(new Date().getMonth() + 1).padStart(2, '0');
-                    const initialMonthId = `${currentYear}-${currentMonth}`;
-                    monthIDs.push(initialMonthId);
-                    await createNewMonth(initialMonthId, false); // Első hónap létrehozása, nem a következő!
-                }
-
-                monthIDs.sort().reverse();
-
-                const monthSelect = document.getElementById('month-select');
-                monthSelect.innerHTML = '';
-                let hasAnnualSummary = false;
-
-                monthIDs.forEach((month, index) => {
-                    const year = month.substring(0, 4);
-                    const monthPart = month.substring(5, 7);
-
-                    const summaryId = `YEAR-SUMMARY-${year}`;
-                    if (!hasAnnualSummary && monthIDs.filter(m => m.startsWith(year)).length > 0) {
-                        // Éves Összesítő hozzáadása az első évhez (csak egyszer)
-                        monthSelect.innerHTML += `<option value="${summaryId}">ÉVES ÖSSZESÍTŐ (${year})</option>`;
-                        hasAnnualSummary = true;
-                    }
-                    
-                    const monthOption = document.createElement('option');
-                    monthOption.value = month;
-                    monthOption.textContent = `${year}. ${monthPart}. hónap`;
-                    monthSelect.appendChild(monthOption);
-                });
-
-                const lastSelectedMonth = localStorage.getItem('lastSelectedMonth');
-                if (lastSelectedMonth && monthIDs.includes(lastSelectedMonth)) {
-                    currentMonthId = lastSelectedMonth;
-                } else {
-                    currentMonthId = monthIDs[0];
-                }
-                monthSelect.value = currentMonthId;
-
-                monthSelect.onchange = (e) => {
-                    currentMonthId = e.target.value;
-                    localStorage.setItem('lastSelectedMonth', currentMonthId);
-                    if (billsSubscription) billsSubscription();
-                    if (currentMonthId.startsWith('YEAR-SUMMARY')) {
-                        renderAnnualSummary();
-                    } else {
-                        startBillsListener(currentMonthId);
-                        renderMeterReadings(currentMonthId); // ÚJ: Meter reading renderelés
-                    }
-                };
-
-                if (currentMonthId.startsWith('YEAR-SUMMARY')) {
-                    renderAnnualSummary();
-                } else {
-                    startBillsListener(currentMonthId);
-                    renderMeterReadings(currentMonthId); // ÚJ: Meter reading renderelés
-                }
-
-                document.getElementById('app-container').classList.remove('hidden');
-                document.getElementById('app-status').textContent = `Felhasználó: ${userId.substring(0, 8)}... Kész.`;
-
-            } catch (error) {
-                document.getElementById('app-status').innerHTML = `<span class="text-red-500">Hiba a hónapok betöltésekor: ${error.message}</span>`;
-                console.error("Month list loading error:", error);
-            }
-        };
-
-        const startBillsListener = (monthId) => {
-            if (billsSubscription) billsSubscription();
-
-            const q = query(getMonthCollectionRef(monthId));
-
-            billsSubscription = onSnapshot(q, (snapshot) => {
-                const bills = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                const sortType = document.getElementById('sort-type').value;
-                renderBills(bills, sortType);
-                renderMonthlySummary(bills);
-            }, (error) => {
-                document.getElementById('app-status').innerHTML = `<span class="text-red-500">Adatbázis hiba: ${error.message}</span>`;
-                console.error("Firestore Bills Listener Error:", error);
-            });
-            document.getElementById('annual-summary-view').classList.add('hidden');
-            document.getElementById('monthly-view').classList.remove('hidden');
-        };
-        
-        // --- HÓNAP GENERÁLÁS ÉS NAVIGÁCIÓ SEGÉD FUNKCIÓK ---
-
-        const getPreviousMonthId = (currentId) => {
-            const [year, month] = currentId.split('-').map(Number);
-            let prevMonth = month - 1;
-            let prevYear = year;
-            if (prevMonth === 0) {
-                prevMonth = 12;
-                prevYear -= 1;
-            }
-            return `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
-        };
-
-        const createNewMonth = async (monthId = null, findNext = true) => {
-            document.getElementById('app-status').textContent = 'Új hónap létrehozása...';
-            try {
-                let newMonthId = monthId;
-                if (!newMonthId && findNext) {
-                    const selectedMonthId = document.getElementById('month-select').value;
-                    let year = parseInt(selectedMonthId.substring(0, 4));
-                    let month = parseInt(selectedMonthId.substring(5, 7));
-                    
-                    if (selectedMonthId.startsWith('YEAR-SUMMARY')) {
-                        year = parseInt(selectedMonthId.substring(13, 17));
-                        month = 1;
-                    } else {
-                        month += 1;
-                        if (month > 12) {
-                            month = 1;
-                            year += 1;
-                        }
-                    }
-                    newMonthId = `${year}-${String(month).padStart(2, '0')}`;
-                } else if (!newMonthId) {
-                    return; // Hiba, ha nem tudjuk az új hónapot meghatározni
-                }
-
-                const previousMonthId = getPreviousMonthId(newMonthId);
-                const prevDocs = await getDocs(getMonthCollectionRef(previousMonthId));
-                const previousMonthBills = prevDocs.docs.map(doc => ({ ...doc.data() }));
-
-                const billsToAdd = [];
-                const isMonthExists = (await getDoc(doc(db, `artifacts/${__app_id}/users/${userId}/months`, newMonthId))).exists();
-
-                if (isMonthExists) {
-                    currentMonthId = newMonthId;
-                    localStorage.setItem('lastSelectedMonth', newMonthId);
-                    loadMonthsList();
-                    return;
-                }
-
-                for (const recurringBill of recurringBillsCache) {
-                    if (recurringBill.recurrence > 0) {
-                        const [billYear, billMonth] = newMonthId.split('-').map(Number);
-                        // A havi, negyedéves, éves ciklus számítása
-                        const monthDiff = (billYear * 12 + billMonth) - (2020 * 12 + 1); // 2020-01-től induló referencia
-                        const isDue = monthDiff % recurringBill.recurrence === 0;
-
-                        if (isDue) {
-                             const previousBill = previousMonthBills.find(pb => pb.recurringId === recurringBill.id);
-                             billsToAdd.push({
-                                name: recurringBill.name,
-                                // Tervezett összeg = előző hónap VALÓS összege (vagy 0)
-                                plannedAmount: previousBill ? (previousBill.actualAmount || 0) : (recurringBill.plannedAmount || 0), 
-                                actualAmount: 0,
-                                isPaid: false,
-                                dueDay: recurringBill.dueDay || 1,
-                                paidAt: null,
-                                recurrence: recurringBill.recurrence,
-                                recurringId: recurringBill.id
-                             });
-                        }
-                    }
-                }
-                
-                const monthDocRef = doc(db, `/artifacts/${__app_id}/users/${userId}/months`, newMonthId);
-                await setDoc(monthDocRef, { createdAt: new Date().toISOString() });
-
-                const batchPromises = billsToAdd.map(bill => addDoc(getMonthCollectionRef(newMonthId), bill));
-                await Promise.all(batchPromises);
-
-                currentMonthId = newMonthId;
-                localStorage.setItem('lastSelectedMonth', newMonthId);
-                loadMonthsList();
-
-            } catch (error) {
-                document.getElementById('app-status').innerHTML = `<span class="text-red-500">Hiba az új hónap létrehozásakor: ${error.message}</span>`;
-                console.error("Create new month error:", error);
-            }
-        };
-
-
-        // --- SZÁMLA (BILL) RENDERELÉS ÉS MÓDOSÍTÁS ---
-
-        const renderBills = (bills, sortType) => {
-            const billList = document.getElementById('bill-list');
-            let sortedBills = [...bills];
-
-            if (sortType === 'name') {
-                sortedBills.sort((a, b) => a.name.localeCompare(b.name));
-            } else if (sortType === 'status') {
-                sortedBills.sort((a, b) => a.isPaid === b.isPaid ? 0 : a.isPaid ? 1 : -1);
-            } else if (sortType === 'dueDay') {
-                 sortedBills.sort((a, b) => (a.dueDay || 32) - (b.dueDay || 32));
-            }
-
-            billList.innerHTML = sortedBills.map(bill => {
-                const isPaidClass = bill.isPaid ? 'bg-green-100' : 'bg-red-100';
-                const buttonClass = bill.isPaid ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600';
-                const isPaidText = bill.isPaid ? `Befizetve (${new Date(bill.paidAt).toLocaleDateString('hu-HU')})` : 'Befizetésre Vár';
-
-                return `
-                    <div class="flex flex-col sm:flex-row items-center p-3 my-2 ${isPaidClass} rounded-lg shadow-sm transition duration-150 ease-in-out">
-                        <div class="flex-1 w-full sm:w-auto mb-2 sm:mb-0">
-                            <p class="font-bold text-lg">${bill.name}</p>
-                            <p class="text-xs text-gray-500">Esedékesség: ${window.formatDueDay(bill.dueDay)}</p>
-                        </div>
-
-                        <div class="flex w-full sm:w-auto sm:ml-4 items-center mb-2 sm:mb-0">
-                            <div class="flex flex-col mr-4">
-                                <label class="text-xs font-medium text-gray-600">TERVEZETT</label>
-                                <input type="number" 
-                                    value="${bill.plannedAmount || 0}"
-                                    onchange="updateBillAmount('${bill.id}', 'plannedAmount', event.target.value)"
-                                    class="w-28 p-1 border rounded-md text-sm text-center focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="Összeg (Ft)">
-                            </div>
-                            <div class="flex flex-col mr-4">
-                                <label class="text-xs font-medium text-gray-600">VALÓS</label>
-                                <input type="number" 
-                                    value="${bill.actualAmount || 0}"
-                                    onchange="updateBillAmount('${bill.id}', 'actualAmount', event.target.value)"
-                                    class="w-28 p-1 border rounded-md text-sm text-center focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="Összeg (Ft)">
-                            </div>
-                            <div class="flex flex-col mr-4">
-                                <label class="text-xs font-medium text-gray-600">ESEDÉKES NAP</label>
-                                <input type="number" min="1" max="31"
-                                    value="${bill.dueDay || 1}"
-                                    onchange="updateBillAmount('${bill.id}', 'dueDay', event.target.value)"
-                                    class="w-16 p-1 border rounded-md text-sm text-center focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="Nap">
-                            </div>
-                        </div>
-
-                        <button onclick="togglePaidStatus('${bill.id}', ${bill.isPaid})"
-                                class="w-full sm:w-auto px-4 py-2 text-white text-sm font-semibold rounded-lg shadow-md ${buttonClass}">
-                            ${isPaidText}
-                        </button>
-                    </div>
-                `;
-            }).join('');
-        };
-
-        window.togglePaidStatus = async (billId, currentStatus) => {
-            const newStatus = !currentStatus;
-            const updateData = {
-                isPaid: newStatus,
-                paidAt: newStatus ? new Date().toISOString() : null
-            };
-            try {
-                await updateDoc(getBillPath(currentMonthId, billId), updateData);
-            } catch (error) {
-                document.getElementById('app-status').innerHTML = `<span class="text-red-500">Hiba a státusz frissítésekor: ${error.message}</span>`;
-                console.error("Toggle paid status error:", error);
-            }
-        };
-
-        window.updateBillAmount = async (billId, field, value) => {
-            const parsedValue = field === 'dueDay' ? parseInt(value) : Number(value);
-            if (isNaN(parsedValue)) return;
-            const updateData = {};
-            updateData[field] = parsedValue;
-
-            try {
-                await updateDoc(getBillPath(currentMonthId, billId), updateData);
-            } catch (error) {
-                document.getElementById('app-status').innerHTML = `<span class="text-red-500">Hiba az összeg/nap frissítésekor: ${error.message}</span>`;
-                console.error("Update bill amount error:", error);
-            }
-        };
-        
-        const renderMonthlySummary = (bills) => {
-            // Summary logic remains the same (omitted for brevity here, but included in the file)
-            const summaryContainer = document.getElementById('monthly-summary');
-            let totalPaid = 0;
-            let totalDue = 0;
-            let totalPlanned = 0;
-            let totalActual = 0;
-
-            bills.forEach(bill => {
-                const actual = Number(bill.actualAmount) || 0;
-                const planned = Number(bill.plannedAmount) || 0;
-                totalPlanned += planned;
-                totalActual += actual;
-
-                if (bill.isPaid) {
-                    totalPaid += actual;
-                } else {
-                    totalDue += actual;
-                }
-            });
-            
-            const plannedVsActualDiff = totalActual - totalPlanned;
-            const diffColor = plannedVsActualDiff > 0 ? 'text-red-500' : (plannedVsActualDiff < 0 ? 'text-green-500' : 'text-gray-500');
-
-            summaryContainer.innerHTML = `
-                <div class="flex flex-wrap justify-between p-4 bg-gray-50 rounded-xl shadow-inner text-sm font-medium border-t-2 mt-4">
-                    <p class="w-full sm:w-1/2 mb-1 sm:mb-0">Összes Tervezett Kiadás: <span class="font-bold">${window.formatHUF(totalPlanned)}</span></p>
-                    <p class="w-full sm:w-1/2 mb-1 sm:mb-0">Összes Valós Kiadás: <span class="font-bold">${window.formatHUF(totalActual)}</span></p>
-                    <p class="w-full sm:w-1/2 mb-1 sm:mb-0">Befizetve Összesen: <span class="font-bold text-green-600">${window.formatHUF(totalPaid)}</span></p>
-                    <p class="w-full sm:w-1/2 mb-1 sm:mb-0">Befizetésre Vár Összesen: <span class="font-bold text-red-600">${window.formatHUF(totalDue)}</span></p>
-                    <p class="w-full mt-2 text-base">Eltérés a Tervtől (Valós - Tervezett): 
-                        <span class="font-extrabold ${diffColor}">
-                           ${plannedVsActualDiff > 0 ? '+' : ''}${window.formatHUF(plannedVsActualDiff)}
-                        </span>
-                    </p>
-                </div>
-            `;
-        };
-        
-        // --- ÚJ: MÉRŐÓRA ÁLLÁSOK KEZELÉSE ---
-        
-        window.showMeterModal = () => {
-            const today = new Date().toISOString().substring(0, 10);
-            document.getElementById('meterReadingDate').value = today;
-            document.getElementById('add-meter-modal').classList.remove('hidden');
-        };
-
-        window.addMeterReading = async (event) => {
-            event.preventDefault();
-            const form = event.target;
-            const type = form.meterReadingType.value;
-            const reading = Number(form.meterReading.value);
-            const date = form.meterReadingDate.value;
-            
-            if (isNaN(reading) || reading <= 0 || !type || !date) {
-                document.getElementById('app-status').innerHTML = `<span class="text-red-500">Hibás adat: Az óraállásnak pozitív számnak kell lennie.</span>`;
-                return;
-            }
-            
-            try {
-                const newReading = {
-                    monthId: currentMonthId,
-                    type: type,
-                    reading: reading,
-                    date: date,
-                    unit: type === 'villany' ? 'kWh' : (type === 'gaz' ? 'm3' : 'm3'), // Egyszerűsített egységek
-                    timestamp: new Date().getTime() // Rögzítés sorrendjének biztosítására
-                };
-                
-                await addDoc(getMetersCollectionRef(), newReading);
-                
-                document.getElementById('add-meter-modal').classList.add('hidden');
-                form.reset();
-                document.getElementById('app-status').textContent = `Sikeresen rögzítve a(z) ${type} állás.`;
-            } catch (error) {
-                document.getElementById('app-status').innerHTML = `<span class="text-red-500">Hiba az óraállás rögzítésekor: ${error.message}</span>`;
-                console.error("Add meter reading error:", error);
-            }
-        };
-        
-        const renderMeterReadings = (monthId) => {
-            const container = document.getElementById('meter-readings-container');
-            
-            const currentMonthReadings = meterReadingsCache
-                .filter(m => m.monthId === monthId)
-                .sort((a, b) => a.timestamp - b.timestamp);
-                
-            const prevMonthId = getPreviousMonthId(monthId);
-            const prevMonthReadings = meterReadingsCache
-                .filter(m => m.monthId === prevMonthId)
-                .sort((a, b) => a.timestamp - b.timestamp);
-            
-            const types = ['villany', 'gaz', 'viz'];
-            
-            let html = '';
-
-            types.forEach(type => {
-                const currentReadings = currentMonthReadings.filter(m => m.type === type);
-                const lastCurrentReading = currentReadings.length > 0 ? currentReadings[currentReadings.length - 1] : null;
-                
-                const lastPrevReading = prevMonthReadings.length > 0 ? prevMonthReadings[prevMonthReadings.length - 1] : null;
-
-                let consumption = null;
-                let consumptionInfo = '<p class="text-sm text-gray-500">Nincs elegendő adat az előző hónapból.</p>';
-
-                if (lastCurrentReading && lastPrevReading) {
-                    consumption = lastCurrentReading.reading - lastPrevReading.reading;
-                    consumptionInfo = `<p class="text-lg font-bold text-blue-600">${window.formatHUFNoCurrency(consumption)} ${lastCurrentReading.unit}</p>`;
-                } else if (lastCurrentReading) {
-                    // Ha van állás, de nincs előző hónapi állás (pl. első hónap)
-                    consumptionInfo = `<p class="text-lg font-bold text-gray-400">? ${lastCurrentReading.unit} (Nincs előző állás)</p>`;
-                }
-
-                const lastReadingText = lastCurrentReading 
-                    ? `Utolsó állás: ${window.formatHUFNoCurrency(lastCurrentReading.reading)} (${lastCurrentReading.date})`
-                    : 'Nincs rögzítve állás ebben a hónapban.';
-                
-                const deleteButton = currentReadings.length > 0
-                    ? `<button onclick="confirmDelete('meterReading', '${lastCurrentReading.id}', '${type}')" class="text-red-500 hover:text-red-700 text-xs ml-2">Törlés</button>`
-                    : '';
-
-                html += `
-                    <div class="bg-white p-4 rounded-lg shadow-md border-t-4 ${type === 'villany' ? 'border-yellow-500' : (type === 'gaz' ? 'border-orange-500' : 'border-blue-500')}">
-                        <h3 class="text-xl font-extrabold capitalize mb-2">${type.toUpperCase()}</h3>
-                        <p class="text-xs text-gray-500 mb-1">${lastReadingText}${deleteButton}</p>
-                        <div class="mt-3">
-                            <p class="text-sm font-semibold text-gray-700">Számított havi fogyasztás:</p>
-                            ${consumptionInfo}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            container.innerHTML = html;
-        };
-
-        const deleteMeterReadingConfirmed = async (readingId) => {
-            document.getElementById('app-status').textContent = `Törlés: óraállás...`;
-            try {
-                await deleteDoc(doc(db, `/artifacts/${__app_id}/users/${userId}/meters/${readingId}`));
-                document.getElementById('app-status').textContent = `Sikeresen törölve az óraállás.`;
-            } catch (error) {
-                document.getElementById('app-status').innerHTML = `<span class="text-red-500">Hiba az óraállás törlésekor: ${error.message}</span>`;
-                console.error("Delete meter reading error:", error);
-            }
-        };
-
-        // --- EGYÉB SEGÉD FUNKCIÓK ---
-
-        window.handleSort = (sortType) => {
-            document.getElementById('sort-type').value = sortType;
-            if (currentMonthId && !currentMonthId.startsWith('YEAR-SUMMARY')) {
-                if (billsSubscription) billsSubscription();
-                startBillsListener(currentMonthId);
-            }
-        };
-        
-        // --- MODÁL KEZELÉS (Kategória és Megerősítés) ---
-
-        const hideAllModals = () => {
-            document.getElementById('add-category-modal').classList.add('hidden');
-            document.getElementById('manage-categories-modal').classList.add('hidden');
-            document.getElementById('add-meter-modal').classList.add('hidden'); // ÚJ
-        };
-
-        window.showAddCategoryModal = () => {
-            hideAllModals();
-            document.getElementById('add-category-modal').classList.remove('hidden');
-        };
-
-        window.showManageCategoriesModal = () => {
-            hideAllModals();
-            renderManageCategoriesList();
-            document.getElementById('manage-categories-modal').classList.remove('hidden');
-        };
-
-        window.addCategory = async (event) => {
-            event.preventDefault();
-            const form = event.target;
-            const name = form.categoryName.value.trim();
-            const recurrence = parseInt(form.recurrenceType.value);
-            if (!name) return;
-
-            try {
-                const newRecurringBill = {
-                    name: name,
-                    recurrence: recurrence,
-                    dueDay: 1,
-                    plannedAmount: 0,
-                    actualAmount: 0
-                };
-
-                const newDocRef = await addDoc(getRecurringCollectionRef(), newRecurringBill);
-
-                if (recurrence === 0) {
-                     await addDoc(getMonthCollectionRef(currentMonthId), {
-                        name: name,
-                        plannedAmount: 0,
-                        actualAmount: 0,
-                        isPaid: false,
-                        dueDay: 1,
-                        paidAt: null,
-                        recurrence: 0,
-                        recurringId: newDocRef.id
-                     });
-                }
-
-                hideAllModals();
-                form.reset();
-            } catch (error) {
-                document.getElementById('app-status').innerHTML = `<span class="text-red-500">Hiba a kategória hozzáadásakor: ${error.message}</span>`;
-                console.error("Add category error:", error);
-            }
-        };
-
-        const renderManageCategoriesList = () => {
-            const listContainer = document.getElementById('managed-categories-list');
-            listContainer.innerHTML = recurringBillsCache.filter(b => b.recurrence !== 0).map(bill => `
-                <div class="flex flex-col sm:flex-row items-center justify-between p-2 my-1 bg-white rounded-lg border">
-                    <div class="flex-1 w-full sm:w-auto mb-1 sm:mb-0">
-                        <input type="text" value="${bill.name}" id="name-${bill.id}" 
-                               class="font-semibold text-sm w-full border-b border-gray-300 focus:outline-none focus:border-blue-500" />
-                        <select id="recurrence-${bill.id}" class="text-xs text-gray-500 mt-1 w-full border-b border-gray-300 focus:outline-none focus:border-blue-500">
-                            <option value="1" ${bill.recurrence === 1 ? 'selected' : ''}>Minden hónapban</option>
-                            <option value="3" ${bill.recurrence === 3 ? 'selected' : ''}>Negyedévente (3 havonta)</option>
-                            <option value="12" ${bill.recurrence === 12 ? 'selected' : ''}>Évente (12 havonta)</option>
-                        </select>
-                    </div>
-                    <div class="flex mt-2 sm:mt-0">
-                        <button onclick="editRecurringBill('${bill.id}')" class="px-3 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 mr-2">Szerkesztés</button>
-                        <button onclick="confirmDelete('recurringBill', '${bill.id}', '${bill.name}')" class="px-3 py-1 text-xs bg-red-500 text-white rounded-md hover:bg-red-600">Törlés</button>
-                    </div>
-                </div>
-            `).join('');
-        };
-
-        window.editRecurringBill = async (billId) => {
-            const name = document.getElementById(`name-${billId}`).value.trim();
-            const recurrence = parseInt(document.getElementById(`recurrence-${billId}`).value);
-
-            if (!name) return;
-
-            try {
-                await updateDoc(getRecurringBillPath(billId), {
-                    name: name,
-                    recurrence: recurrence
-                });
-                document.getElementById('app-status').textContent = `Sikeresen szerkesztve: ${name}.`;
-            } catch (error) {
-                document.getElementById('app-status').innerHTML = `<span class="text-red-500">Hiba a szerkesztéskor: ${error.message}</span>`;
-                console.error("Edit recurring bill error:", error);
-            }
-        };
-
-        window.confirmDelete = (type, id, name) => {
-            let title, body;
-            if (type === 'month') {
-                title = 'Hónap Törlése Véglegesen';
-                body = `Biztosan törölni szeretnéd a(z) **${name}** hónapot és a benne lévő összes számlaadatot? EZ VISSZAVONHATATLAN!`;
-            } else if (type === 'recurringBill') {
-                title = 'Rendszeres Kategória Törlése';
-                body = `Biztosan törölni szeretnéd a(z) **${name}** kategóriát? A törlés után ez a kategória NEM fog megjelenni új hónapokban, de a régi adatok MEGMARADNAK.`;
-            } else if (type === 'meterReading') { // ÚJ
-                title = 'Óraállás Törlése';
-                body = `Biztosan törölni szeretnéd a legutolsó rögzített **${name}** óraállást? Ez hatással lehet a fogyasztás számításra.`;
-            } else {
-                return;
-            }
-
-            document.getElementById('confirm-modal-title').textContent = title;
-            document.getElementById('confirm-modal-body').innerHTML = body;
-            document.getElementById('confirm-delete-btn').onclick = () => {
-                if (type === 'month') {
-                    deleteMonthConfirmed(id);
-                } else if (type === 'recurringBill') {
-                    deleteRecurringBillConfirmed(id);
-                    renderManageCategoriesList();
-                } else if (type === 'meterReading') { // ÚJ
-                    deleteMeterReadingConfirmed(id);
-                }
-                document.getElementById('confirmation-modal').classList.add('hidden');
-            };
-            document.getElementById('cancel-delete-btn').onclick = () => {
-                document.getElementById('confirmation-modal').classList.add('hidden');
-            };
-
-            document.getElementById('confirmation-modal').classList.remove('hidden');
-        };
-        
-        const deleteMonthConfirmed = async (monthId) => {
-            // Logika a hónap törlésére (maradt)
-            document.getElementById('app-status').textContent = `Törlés: ${monthId}...`;
-            try {
-                const billDocs = await getDocs(getMonthCollectionRef(monthId));
-                const deletePromises = [];
-                billDocs.forEach(doc => deletePromises.push(deleteDoc(doc.ref)));
-                await Promise.all(deletePromises);
-
-                await deleteDoc(doc(db, `/artifacts/${__app_id}/users/${userId}/months/${monthId}`));
-
-                localStorage.removeItem('lastSelectedMonth');
-                loadMonthsList();
-                document.getElementById('app-status').textContent = `Sikeresen törölve: ${monthId}.`;
-            } catch (error) {
-                document.getElementById('app-status').innerHTML = `<span class="text-red-500">Hiba a hónap törlésekor: ${error.message}</span>`;
-                console.error("Delete month error:", error);
-            }
-        };
-
-        const deleteRecurringBillConfirmed = async (billId) => {
-            // Logika a sablon törlésére (maradt)
-            document.getElementById('app-status').textContent = `Törlés: recurring bill ${billId}...`;
-            try {
-                await deleteDoc(getRecurringBillPath(billId));
-                document.getElementById('app-status').textContent = `Sikeresen törölve a sablonból (régi adatok maradtak).`;
-            } catch (error) {
-                document.getElementById('app-status').innerHTML = `<span class="text-red-500">Hiba a sablon törlésekor: ${error.message}</span>`;
-                console.error("Delete recurring bill error:", error);
-            }
-        };
-
-        // --- ÉVES ÖSSZESÍTÉS (Annual Summary) ---
-        // Logika az éves összesítésre (maradt)
-        const renderAnnualSummary = async () => {
-            if (!isAuthReady) return;
-            document.getElementById('app-status').textContent = 'Éves összesítő generálása...';
-
-            const summaryYear = currentMonthId.split('-')[2];
-            const annualSummaryView = document.getElementById('annual-summary-view');
-            const monthlyView = document.getElementById('monthly-view');
-
-            monthlyView.classList.add('hidden');
-            annualSummaryView.classList.remove('hidden');
-
-            const monthsToFetch = [];
-            for (let i = 1; i <= 12; i++) {
-                monthsToFetch.push(`${summaryYear}-${String(i).padStart(2, '0')}`);
-            }
-
-            const monthDataPromises = monthsToFetch.map(async monthId => {
-                const billsSnapshot = await getDocs(getMonthCollectionRef(monthId));
-                if (billsSnapshot.empty) return null;
-
-                let totalPlanned = 0;
-                let totalActual = 0;
-                let categoryTotals = {}; // JSON.parse és stringify nélkül nem lehet a Firestore-ban tárolni, ezért itt számoljuk
-                // Ez az egyszerűsített verzió nem tárolja a kategóriákat, hanem csak az összegeket számolja.
-                // A teljesebb verzió a kategóriák szerint számol, de a kategórianeveket is ki kell gyűjteni.
-                
-                billsSnapshot.docs.forEach(doc => {
-                    const bill = doc.data();
-                    const planned = Number(bill.plannedAmount) || 0;
-                    const actual = Number(bill.actualAmount) || 0;
-                    
-                    totalPlanned += planned;
-                    totalActual += actual;
-                    
-                    const categoryName = bill.name;
-                    categoryTotals[categoryName] = (categoryTotals[categoryName] || 0) + actual;
-                });
-
-                return { 
-                    monthId, 
-                    totalPlanned, 
-                    totalActual, 
-                    totalPaid: totalActual, // Egyszerűsített: fizetett = valós
-                    totalDue: 0,
-                    categoryTotals
-                };
-            });
-
-            const allMonthData = (await Promise.all(monthDataPromises)).filter(d => d !== null);
-
-            // 2. Éves összes kategória lista összeállítása
-            const allCategories = new Set();
-            allMonthData.forEach(month => {
-                Object.keys(month.categoryTotals).forEach(cat => allCategories.add(cat));
-            });
-            const sortedCategories = Array.from(allCategories).sort();
-
-            // 3. Éves összesítő táblázat generálása
-
-            let grandTotalPlanned = 0;
-            let grandTotalActual = 0;
-
-            const tableRows = allMonthData.map(month => {
-                grandTotalPlanned += month.totalPlanned;
-                grandTotalActual += month.totalActual;
-                
-                const monthName = new Date(month.monthId.substring(0, 4), month.monthId.substring(5, 7) - 1).toLocaleDateString('hu-HU', { month: 'long' });
-
-                const categoryCells = sortedCategories.map(cat => {
-                    const amount = month.categoryTotals[cat] || 0;
-                    return `<td class="p-2 border border-gray-200 text-right">${window.formatHUFNoCurrency(amount)}</td>`;
-                }).join('');
-
-                const plannedVsActualDiff = month.totalActual - month.totalPlanned;
-                const diffColor = plannedVsActualDiff > 0 ? 'text-red-600 font-semibold' : (plannedVsActualDiff < 0 ? 'text-green-600 font-semibold' : 'text-gray-500');
-
-                return `
-                    <tr class="hover:bg-gray-50">
-                        <td class="p-2 font-bold whitespace-nowrap border border-gray-200">${monthName}</td>
-                        <td class="p-2 border border-gray-200 text-right font-medium text-blue-600">${window.formatHUFNoCurrency(month.totalPlanned)}</td>
-                        <td class="p-2 border border-gray-200 text-right font-medium text-blue-600">${window.formatHUFNoCurrency(month.totalActual)}</td>
-                        <td class="p-2 border border-gray-200 text-right ${diffColor} font-bold">${plannedVsActualDiff > 0 ? '+' : ''}${window.formatHUFNoCurrency(plannedVsActualDiff)}</td>
-                        ${categoryCells}
-                    </tr>
-                `;
-            }).join('');
-
-            // Lábazat (kategória összesítők)
-            const grandCategoryTotals = {};
-            allMonthData.forEach(month => {
-                for (const cat in month.categoryTotals) {
-                    grandCategoryTotals[cat] = (grandCategoryTotals[cat] || 0) + month.categoryTotals[cat];
-                }
-            });
-
-            const categoryFooterCells = sortedCategories.map(cat => {
-                const total = grandCategoryTotals[cat] || 0;
-                return `<td class="p-2 border border-gray-200 text-right font-extrabold text-lg bg-gray-200">${window.formatHUFNoCurrency(total)}</td>`;
-            }).join('');
-
-            const headerCells = sortedCategories.map(cat => `<th class="p-2 border border-gray-200 bg-gray-100 whitespace-nowrap">${cat}</th>`).join('');
-            
-            const plannedVsActualGrandDiff = grandTotalActual - grandTotalPlanned;
-            const grandDiffColor = plannedVsActualGrandDiff > 0 ? 'text-red-700' : (plannedVsActualGrandDiff < 0 ? 'text-green-700' : 'text-gray-700');
-
-
-            annualSummaryView.innerHTML = `
-                <h2 class="text-2xl font-extrabold text-gray-800 mb-4">${summaryYear} ÉVES ÖSSZESÍTÉS (Valós Kategória Kiadások)</h2>
-                
-                <div class="flex flex-wrap justify-around p-4 mb-6 bg-blue-50 rounded-xl shadow-md border-2 border-blue-200">
-                    <p class="font-bold text-lg mr-4">Teljes Tervezett: <span class="text-blue-600">${window.formatHUF(grandTotalPlanned)}</span></p>
-                    <p class="font-bold text-lg mr-4">Teljes Valós: <span class="text-blue-600">${window.formatHUF(grandTotalActual)}</span></p>
-                    <p class="font-bold text-lg">Eltérés: <span class="${grandDiffColor}">${plannedVsActualGrandDiff > 0 ? '+' : ''}${window.formatHUF(plannedVsActualGrandDiff)}</span></p>
-                </div>
-
-                <div class="overflow-x-auto rounded-lg shadow-xl">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-100">
-                            <tr>
-                                <th class="p-2 border border-gray-200 bg-gray-100 sticky left-0 z-10">Hónap</th>
-                                <th class="p-2 border border-gray-200 bg-gray-100">Tervezett Összesen</th>
-                                <th class="p-2 border border-gray-200 bg-gray-100">Valós Összesen</th>
-                                <th class="p-2 border border-gray-200 bg-gray-100">Eltérés (Terv vs. Valós)</th>
-                                ${headerCells}
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200 text-sm">
-                            ${tableRows}
-                            <tr class="font-bold bg-gray-200 border-t-4 border-gray-400">
-                                <td class="p-2 border border-gray-200 sticky left-0 z-10 bg-gray-200">ÉVES ÖSSZESEN</td>
-                                <td class="p-2 border border-gray-200 text-right text-lg text-blue-800">${window.formatHUFNoCurrency(grandTotalPlanned)}</td>
-                                <td class="p-2 border border-gray-200 text-right text-lg text-blue-800">${window.formatHUFNoCurrency(grandTotalActual)}</td>
-                                <td class="p-2 border border-gray-200 text-right text-lg ${grandDiffColor}">${plannedVsActualGrandDiff > 0 ? '+' : ''}${window.formatHUFNoCurrency(plannedVsActualGrandDiff)}</td>
-                                ${categoryFooterCells}
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            `;
-            document.getElementById('app-status').textContent = `Felhasználó: ${userId.substring(0, 8)}... Kész.`;
-        };
-        
-        // --- EXPORT FUNKCIÓ (CSV) ---
-        // Logika a CSV exportra (maradt)
-        window.exportCSV = async () => {
-            if (currentMonthId.startsWith('YEAR-SUMMARY')) {
-                const summaryYear = currentMonthId.split('-')[2];
-                const data = await getDocs(collection(db, `/artifacts/${__app_id}/users/${userId}/months`));
-                
-                let csvContent = "Hónap,Tervezett osszesen,Valós osszesen,Befizetett osszesen,Befizetesre var osszesen\n";
-                let allMonthData = [];
-
-                data.docs.forEach(doc => {
-                    if (doc.id.startsWith(summaryYear)) {
-                        allMonthData.push({ monthId: doc.id });
-                    }
-                });
-
-                const monthDataPromises = allMonthData.map(async month => {
-                    const billsSnapshot = await getDocs(getMonthCollectionRef(month.monthId));
-                    let totalPlanned = 0;
-                    let totalActual = 0;
-                    let totalPaid = 0;
-                    let totalDue = 0;
-
-                    billsSnapshot.docs.forEach(doc => {
-                        const bill = doc.data();
-                        const actual = Number(bill.actualAmount) || 0;
-                        const planned = Number(bill.plannedAmount) || 0;
-                        totalPlanned += planned;
-                        totalActual += actual;
-
-                        if (bill.isPaid) {
-                            totalPaid += actual;
-                        } else {
-                            totalDue += actual;
-                        }
-                    });
-                    
-                    return `${month.monthId},${window.formatHUFNoCurrency(totalPlanned)},${window.formatHUFNoCurrency(totalActual)},${window.formatHUFNoCurrency(totalPaid)},${window.formatHUFNoCurrency(totalDue)}`;
-                });
-
-                csvContent += (await Promise.all(monthDataPromises)).join('\n');
-                downloadCSV(csvContent, `${summaryYear}_eves_rezsi_osszefoglalo.csv`);
-
-            } else {
-                const billsSnapshot = await getDocs(getMonthCollectionRef(currentMonthId));
-                let csvContent = "Kategoria,Tervezett (Ft),Valos (Ft),Esedekes nap,Fizetve,Fizetve datum\n";
-
-                billsSnapshot.docs.forEach(doc => {
-                    const bill = doc.data();
-                    const paidDate = bill.paidAt ? new Date(bill.paidAt).toLocaleDateString('hu-HU') : '';
-                    csvContent += `"${bill.name}",${bill.plannedAmount || 0},${bill.actualAmount || 0},${bill.dueDay || 1},${bill.isPaid ? 'Igen' : 'Nem'},"${paidDate}"\n`;
-                });
-
-                downloadCSV(csvContent, `${currentMonthId}_rezsi_szamlak.csv`);
-            }
-        };
-
-        const downloadCSV = (content, filename) => {
-            const encodedUri = encodeURIComponent(content);
-            const dataUri = 'data:text/csv;charset=utf-8,\uFEFF' + encodedUri;
-            
-            const link = document.createElement('a');
-            link.setAttribute('href', dataUri);
-            link.setAttribute('download', filename);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        };
-
-        // --- INDÍTÁS ---
-        setupFirebaseAndAuth();
-
-    </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f4f7f9;
-        }
-        #annual-summary-view table {
-            min-width: 800px; 
-        }
-        #annual-summary-view th:first-child, #annual-summary-view td:first-child {
-            left: 0;
-        }
-        
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f4f7f9; }
+        .card { background-color: white; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        .btn-primary { background-color: #3498eb; color: white; transition: background-color 0.2s; }
+        .btn-primary:hover { background-color: #2980b9; }
+        .modal { backdrop-filter: blur(5px); }
     </style>
 </head>
-<body class="p-4 sm:p-8">
+<body class="min-h-screen p-4 sm:p-8">
 
-    <div id="app-status" class="text-center mb-4 text-gray-500 font-medium">Betöltés...</div>
-
-    <div id="app-container" class="max-w-4xl mx-auto bg-white p-4 sm:p-6 rounded-xl shadow-2xl hidden">
-        <h1 class="text-3xl font-extrabold text-center text-gray-800 mb-6">Rezsi és Költség Nyilvántartó</h1>
-        
-        <!-- Hónap és Művelet Vezérlők -->
-        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-3 sm:space-y-0">
-            
-            <!-- Hónap Választó és Törlés -->
-            <div class="flex w-full sm:w-auto space-x-2">
-                <select id="month-select" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-lg font-semibold focus:ring-blue-500 focus:border-blue-500"></select>
-                <button onclick="confirmDelete('month', currentMonthId, document.getElementById('month-select').options[document.getElementById('month-select').selectedIndex].text)"
-                        class="px-4 py-2 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200 transition duration-150 ease-in-out whitespace-nowrap">
-                    Hónap Törlése
-                </button>
-            </div>
-            
-            <!-- Akció Gombok -->
-            <div class="flex w-full sm:w-auto space-x-2">
-                <button onclick="createNewMonth()" class="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 shadow-md transition duration-150 ease-in-out whitespace-nowrap">
-                    + Új Hónap
-                </button>
-                <button onclick="window.exportCSV()" class="flex-1 px-4 py-2 bg-gray-500 text-white rounded-lg font-semibold hover:bg-gray-600 shadow-md transition duration-150 ease-in-out whitespace-nowrap">
-                    Export (CSV)
-                </button>
-            </div>
-        </div>
-
-        <!-- Rendező Gombok és Kategóriakezelés -->
-        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-3 sm:space-y-0">
-            <div class="flex w-full sm:w-auto space-x-2">
-                <label class="font-semibold text-gray-700 whitespace-nowrap">Rendezés:</label>
-                <select id="sort-type" onchange="window.handleSort(this.value)" class="p-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
-                    <option value="dueDay">Esedékesség</option>
-                    <option value="status">Státusz (Hátralék elől)</option>
-                    <option value="name">Név (A-Z)</option>
-                </select>
-            </div>
-             <div class="flex w-full sm:w-auto space-x-2 justify-end">
-                <button onclick="window.showAddCategoryModal()" class="px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 shadow-md transition duration-150 ease-in-out whitespace-nowrap">
-                    + Kategória Hozzáadása
-                </button>
-                <button onclick="window.showManageCategoriesModal()" class="px-4 py-2 bg-yellow-500 text-white rounded-lg font-semibold hover:bg-yellow-600 shadow-md transition duration-150 ease-in-out whitespace-nowrap">
-                    Kategóriák Kezelése
-                </button>
-            </div>
-        </div>
-
-        <!-- Havi Nézet -->
-        <div id="monthly-view">
-            <!-- ÓRAÁLLÁSOK SZEKCIÓ -->
-            <div class="mb-6">
-                <h2 class="text-xl font-bold text-gray-700 mb-3 flex justify-between items-center">
-                    Mérőóra Állások és Fogyasztás
-                    <button onclick="window.showMeterModal()" class="px-3 py-1 text-sm bg-purple-500 text-white rounded-lg font-semibold hover:bg-purple-600 shadow-md transition duration-150 ease-in-out">
-                        + Állás Rögzítése
-                    </button>
-                </h2>
-                <div id="meter-readings-container" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <!-- Meter readings will be rendered here -->
-                </div>
-            </div>
-
-            <!-- SZÁMLA LISTA SZEKCIÓ -->
-            <h2 class="text-xl font-bold text-gray-700 mb-3">Számlák</h2>
-            <div id="bill-list" class="space-y-3">
-                <!-- A számlák listája ide kerül renderelésre -->
-                <p class="text-center text-gray-500">Nincs számla ehhez a hónaphoz.</p>
-            </div>
-            <div id="monthly-summary">
-                <!-- Havi összesítés ide kerül renderelésre -->
-            </div>
-        </div>
-        
-        <!-- Éves Összesítő Nézet -->
-        <div id="annual-summary-view" class="hidden">
-            <!-- Éves táblázat ide kerül renderelésre -->
-        </div>
-
+    <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-90 flex flex-col items-center justify-center z-[100] transition-opacity duration-300">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+        <p class="text-blue-600 font-semibold">Adatok betöltése és hitelesítés...</p>
     </div>
 
-    <!-- --- Modálok --- -->
+    <!-- Fő Konténer -->
+    <div class="max-w-4xl mx-auto space-y-8" id="main-content" style="display:none;">
+        <header class="text-center">
+            <h1 class="text-4xl font-bold text-gray-800">Rezsi Nyilvántartó</h1>
+            <p class="text-gray-500 mt-1">Kövesd nyomon kiadásaidat egyszerűen</p>
+            <p class="text-xs mt-2 text-gray-400">Felhasználói azonosító (UserID): <span id="user-id-display" class="font-mono text-xs"></span></p>
+        </header>
 
-    <!-- 1. Hozzáadás Modál (Kategória) -->
-    <div id="add-category-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50">
-        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md">
-            <h2 class="text-xl font-bold mb-4">Új Kategória Hozzáadása</h2>
-            <form onsubmit="window.addCategory(event)">
-                <div class="mb-4">
-                    <label for="categoryName" class="block text-sm font-medium text-gray-700">Kategória neve</label>
-                    <input type="text" id="categoryName" name="categoryName" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <div class="mb-4">
-                    <label for="recurrenceType" class="block text-sm font-medium text-gray-700">Gyakoriság</label>
-                    <select id="recurrenceType" name="recurrenceType" class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                        <option value="1">Minden hónapban (Rendszeres)</option>
-                        <option value="3">Negyedévente (3 havonta)</option>
-                        <option value="12">Évente (12 havonta)</option>
-                        <option value="0">Egyszeri alkalom (Csak ehhez a hónaphoz)</option>
-                    </select>
-                </div>
-                <div class="flex justify-end space-x-3">
-                    <button type="button" onclick="hideAllModals()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Mégse</button>
-                    <button type="submit" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">Hozzáadás</button>
-                </div>
-            </form>
+        <!-- Összegző Kártya -->
+        <div class="card p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="text-center p-3 rounded-lg bg-blue-50">
+                <p class="text-sm font-medium text-blue-600">Összes tétel</p>
+                <p id="summary-total-items" class="text-2xl font-bold text-blue-800">0</p>
+            </div>
+            <div class="text-center p-3 rounded-lg bg-green-50">
+                <p class="text-sm font-medium text-green-600">Fizetett érték</p>
+                <p id="summary-paid-amount" class="text-2xl font-bold text-green-800">0 Ft</p>
+            </div>
+            <div class="text-center p-3 rounded-lg bg-red-50">
+                <p class="text-sm font-medium text-red-600">Hátralék</p>
+                <p id="summary-unpaid-amount" class="text-2xl font-bold text-red-800">0 Ft</p>
+            </div>
+        </div>
+
+        <!-- Új Tétel/Kategória Gombok -->
+        <div class="flex flex-col sm:flex-row justify-between space-y-4 sm:space-y-0 sm:space-x-4">
+            <button id="open-add-modal-btn" class="w-full sm:w-1/2 btn-primary py-3 rounded-xl font-semibold shadow-md hover:shadow-lg">
+                <span class="mr-2">+</span> Új tétel rögzítése
+            </button>
+            <button id="open-managed-categories-btn" class="w-full sm:w-1/2 bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-xl font-semibold shadow-md hover:shadow-lg">
+                <span class="mr-2">🛠️</span> Kezelt tételek
+            </button>
+        </div>
+
+        <!-- Elemek Listája -->
+        <div class="card p-4">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Rezsi Tételek</h2>
+            <div id="items-list" class="space-y-0 divide-y divide-gray-200">
+                <p id="no-items-message" class="text-gray-500 text-center py-4">Nincs rögzített tétel.</p>
+                <!-- A tételek ide kerülnek beillesztésre JS-sel -->
+            </div>
         </div>
     </div>
-    
-    <!-- 2. Hozzáadás Modál (Óraállás - ÚJ) -->
-    <div id="add-meter-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50">
-        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md">
-            <h2 class="text-xl font-bold mb-4">Mérőóra Állás Rögzítése</h2>
-            <form onsubmit="window.addMeterReading(event)">
-                <div class="mb-4">
-                    <label for="meterReadingType" class="block text-sm font-medium text-gray-700">Mérőóra típusa</label>
-                    <select id="meterReadingType" name="meterReadingType" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 capitalize">
-                        <option value="villany">Villany</option>
-                        <option value="gaz">Gáz</option>
-                        <option value="viz">Víz</option>
-                    </select>
+
+    <!-- 1. Új/Szerkesztés Modál (Tétel) -->
+    <div id="item-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50 modal">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-lg">
+            <h2 id="item-modal-title" class="text-2xl font-bold text-gray-800 mb-6">Új Tétel Rögzítése</h2>
+            <form id="item-form">
+                <input type="hidden" id="item-id">
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="item-name" class="block text-sm font-medium text-gray-700">Tétel neve</label>
+                        <input type="text" id="item-name" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                    </div>
+                    <div>
+                        <label for="item-category" class="block text-sm font-medium text-gray-700">Kategória (opcionális)</label>
+                        <select id="item-category" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                            <option value="">-- Válassz --</option>
+                            <!-- Kategóriák ide kerülnek a managedCategories alapján -->
+                        </select>
+                    </div>
                 </div>
-                <div class="mb-4">
-                    <label for="meterReading" class="block text-sm font-medium text-gray-700">Aktuális állás (egész szám)</label>
-                    <input type="number" id="meterReading" name="meterReading" min="1" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label for="item-amount" class="block text-sm font-medium text-gray-700">Összeg (Ft)</label>
+                        <input type="number" id="item-amount" required min="1" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                    </div>
+                    <div>
+                        <label for="item-date" class="block text-sm font-medium text-gray-700">Esedékesség dátuma</label>
+                        <input type="date" id="item-date" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                    </div>
+                    <div class="flex items-end">
+                        <div class="flex items-center h-full">
+                            <input id="item-isPaid" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            <label for="item-isPaid" class="ml-2 text-sm font-medium text-gray-700">Kifizetve</label>
+                        </div>
+                    </div>
                 </div>
-                <div class="mb-4">
-                    <label for="meterReadingDate" class="block text-sm font-medium text-gray-700">Rögzítés dátuma</label>
-                    <input type="date" id="meterReadingDate" name="meterReadingDate" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <div class="flex justify-end space-x-3">
-                    <button type="button" onclick="hideAllModals()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Mégse</button>
-                    <button type="submit" class="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600">Rögzítés</button>
+                
+                <div class="flex justify-end space-x-4 mt-6">
+                    <button type="button" onclick="hideAllModals()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Mégsem</button>
+                    <button type="submit" class="px-4 py-2 btn-primary rounded-lg font-semibold">Mentés</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- 3. Kategória Kezelő Modál -->
-    <div id="manage-categories-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50">
-        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-xl">
-            <h2 class="text-xl font-bold mb-4">Rendszeres Kategóriák Kezelése</h2>
+    <!-- 2. Új/Szerkesztés Modál (Kezelt Kategória) -->
+    <div id="managed-category-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50 modal">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-lg">
+            <h2 id="managed-category-modal-title" class="text-2xl font-bold text-gray-800 mb-6">Kezelt Tétel Szerkesztése</h2>
+            <form id="managed-category-form">
+                <input type="hidden" id="managed-category-id">
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="managed-category-name" class="block text-sm font-medium text-gray-700">Kategória neve</label>
+                        <input type="text" id="managed-category-name" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                    </div>
+                    <div>
+                        <label for="managed-category-period" class="block text-sm font-medium text-gray-700">Ismétlődés</label>
+                        <select id="managed-category-period" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                            <option value="monthly">Havonta</option>
+                            <option value="quarterly">Negyedévente</option>
+                            <option value="yearly">Évente</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                     <div>
+                        <label for="managed-category-amount" class="block text-sm font-medium text-gray-700">Összeg (Ft)</label>
+                        <input type="number" id="managed-category-amount" required min="0" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                    </div>
+                    <div>
+                        <label for="managed-category-start-date" class="block text-sm font-medium text-gray-700">Kezdő dátum (hónap/év)</label>
+                        <input type="month" id="managed-category-start-date" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-4 mt-6">
+                    <button type="button" onclick="hideAllModals()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Mégsem</button>
+                    <button type="submit" class="px-4 py-2 btn-primary rounded-lg font-semibold">Mentés</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 3. Kezelt Típusok Lista Modál -->
+    <div id="managed-categories-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50 modal">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-2xl">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">Kezelt Tételek / Kategóriák</h2>
             <p class="text-sm text-gray-600 mb-4">Itt szerkesztheted/törölheted a rendszeresen ismétlődő tételeket.</p>
+            <button type="button" onclick="openManagedCategoryAddModal()" class="px-4 py-2 mb-4 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold">
+                <span class="mr-1">+</span> Új kezelt tétel
+            </button>
             <div id="managed-categories-list" class="space-y-2 max-h-96 overflow-y-auto pr-2">
                 <!-- Kezelt kategória lista ide kerül renderelésre -->
             </div>
@@ -1135,21 +175,683 @@ const setupFirebaseAndAuth = async () => {
     </div>
 
     <!-- 4. Megerősítő Modál -->
-    <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50">
+    <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50 modal">
         <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm text-center">
             <h2 id="confirm-modal-title" class="text-xl font-bold text-red-600 mb-4"></h2>
             <p id="confirm-modal-body" class="text-gray-700 mb-6"></p>
             <div class="flex justify-center space-x-4">
-                <button id="cancel-delete-btn" class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Mégse</button>
-                <button id="confirm-delete-btn" class="px-6 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow-md transition duration-150 ease-in-out">
-                    Igen, Törlöm!
-                </button>
+                <button id="cancel-delete-btn" onclick="hideAllModals()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Mégsem</button>
+                <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold">Törlés</button>
             </div>
         </div>
     </div>
+    
+    <!-- 5. Toast üzenet (sikeres mentés/hiba) -->
+    <div id="toast-message" class="fixed bottom-4 right-4 bg-green-500 text-white p-3 rounded-lg shadow-xl hidden transition-opacity duration-300 opacity-0 z-50">
+        Sikeresen elmentve!
+    </div>
 
+    <!-- FIREBASE & CORE JS LOGIC -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // -----------------------------------------------------
+        // I. Inicializálás és Globális Állapot
+        // -----------------------------------------------------
+        
+        // Firebase és Firestore inicializálása
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-rezsi-app';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        // Adatbázis logolás bekapcsolása (debug)
+        setLogLevel('debug');
+
+        // Globális állapot
+        let currentUserId = null;
+        let currentItemToEdit = null;
+        let currentManagedCategoryToEdit = null;
+        window.managedCategories = []; // Kezelt kategóriák a sablonokhoz
+        
+        const mainContent = document.getElementById('main-content');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const userIdDisplay = document.getElementById('user-id-display');
+
+        // PWA: Service Worker regisztráció (opcionális, de jó gyakorlat)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').then(registration => {
+                    console.log('ServiceWorker regisztráció sikeres: ', registration.scope);
+                }).catch(err => {
+                    console.log('ServiceWorker regisztráció sikertelen: ', err);
+                });
+            });
+        }
+
+        // -----------------------------------------------------
+        // II. Segédfüggvények
+        // -----------------------------------------------------
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast-message');
+            toast.textContent = message;
+            toast.className = `fixed bottom-4 right-4 text-white p-3 rounded-lg shadow-xl transition-opacity duration-300 z-50 ${isError ? 'bg-red-500' : 'bg-green-500'}`;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                toast.addEventListener('transitionend', () => {
+                    toast.classList.add('hidden');
+                    toast.classList.remove('opacity-0');
+                }, { once: true });
+            }, 3000);
+        }
+
+        function hideAllModals() {
+            document.getElementById('item-modal').classList.add('hidden');
+            document.getElementById('managed-category-modal').classList.add('hidden');
+            document.getElementById('managed-categories-modal').classList.add('hidden');
+            document.getElementById('confirmation-modal').classList.add('hidden');
+        }
+        
+        function getCollectionPath(collectionName) {
+            if (!currentUserId) return null;
+            // Privát adatok: artifacts/{appId}/users/{userId}/{collectionName}
+            return `artifacts/${appId}/users/${currentUserId}/${collectionName}`;
+        }
+
+        // Exponenciális visszalépés (Exponential Backoff) megvalósítása
+        async function fetchWithBackoff(func, maxRetries = 5, delay = 1000) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    return await func();
+                } catch (error) {
+                    if (i === maxRetries - 1) {
+                        console.error("Maximális újrapróbálkozás elérve. Hiba:", error);
+                        throw error;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, delay * (2 ** i) + Math.random() * 1000));
+                }
+            }
+        }
+
+
+        // -----------------------------------------------------
+        // III. UI Frissítés
+        // -----------------------------------------------------
+        
+        /**
+         * Összegző kártyák frissítése
+         * @param {Array} items
+         */
+        function calculateSummary(items) {
+            let totalItems = items.length;
+            let paidAmount = 0;
+            let unpaidAmount = 0;
+
+            items.forEach(item => {
+                const amount = item.amount || 0;
+                if (item.isPaid) {
+                    paidAmount += amount;
+                } else {
+                    unpaidAmount += amount;
+                }
+            });
+
+            document.getElementById('summary-total-items').textContent = totalItems;
+            document.getElementById('summary-paid-amount').textContent = `${paidAmount.toLocaleString('hu-HU')} Ft`;
+            document.getElementById('summary-unpaid-amount').textContent = `${unpaidAmount.toLocaleString('hu-HU')} Ft`;
+        }
+        
+        /**
+         * Tétel lista renderelése
+         * @param {Array} items
+         */
+        function updateItemsDisplay(items) {
+            const list = document.getElementById('items-list');
+            list.innerHTML = '';
+            
+            if (items.length === 0) {
+                document.getElementById('no-items-message').style.display = 'block';
+                return;
+            } else {
+                 document.getElementById('no-items-message').style.display = 'none';
+            }
+            
+            // Dátum szerinti csökkenő rendezés
+            items.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            items.forEach(item => {
+                const isPaidClass = item.isPaid ? 'bg-green-100' : 'bg-red-100';
+                const statusText = item.isPaid ? 'Kifizetve' : 'Hátralék';
+                const statusColor = item.isPaid ? 'text-green-700' : 'text-red-700';
+
+                const row = document.createElement('div');
+                row.className = `flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 ${isPaidClass} rounded-lg mb-2 border`;
+                row.dataset.itemId = item.id;
+                
+                // Tartalom (név, dátum, összeg)
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'mb-2 sm:mb-0';
+                contentDiv.innerHTML = `
+                    <p class="font-semibold text-gray-800 text-lg">${item.name} <span class="text-xs font-normal text-gray-500 ml-2">(${item.category || 'Egyéb'})</span></p>
+                    <p class="text-sm text-gray-600">Esedékesség: ${item.date}</p>
+                    <p class="text-xl font-bold ${statusColor}">${item.amount.toLocaleString('hu-HU')} Ft</p>
+                `;
+
+                // Státusz és műveletek
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'flex items-center space-x-4';
+                
+                const statusBadge = document.createElement('span');
+                statusBadge.className = `px-3 py-1 rounded-full text-xs font-semibold ${statusColor} ${item.isPaid ? 'bg-green-200' : 'bg-red-200'}`;
+                statusBadge.textContent = statusText;
+                
+                // Edit button
+                const editBtn = document.createElement('button');
+                editBtn.className = 'text-blue-500 hover:text-blue-700 p-2 rounded-full hover:bg-gray-200';
+                editBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>';
+                editBtn.onclick = () => openEditModal(item);
+                
+                // Delete button
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-gray-200';
+                deleteBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>';
+                deleteBtn.onclick = () => confirmDeleteItem(item.id);
+
+                actionsDiv.appendChild(statusBadge);
+                actionsDiv.appendChild(editBtn);
+                actionsDiv.appendChild(deleteBtn);
+
+                row.appendChild(contentDiv);
+                row.appendChild(actionsDiv);
+                list.appendChild(row);
+            });
+        }
+        
+        /**
+         * Kezelt kategória lista renderelése (a menedzselt kategória modálban)
+         * @param {Array} categories
+         */
+        function renderManagedCategoriesList(categories) {
+            const list = document.getElementById('managed-categories-list');
+            list.innerHTML = '';
+
+            if (categories.length === 0) {
+                list.innerHTML = '<p class="text-gray-500 text-center py-4">Nincsenek kezelt tételek beállítva.</p>';
+                return;
+            }
+
+            categories.forEach(cat => {
+                const periodMap = { 'monthly': 'Havonta', 'quarterly': 'Negyedévente', 'yearly': 'Évente' };
+                const periodText = periodMap[cat.recurringPeriod] || 'Ismeretlen';
+
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg border';
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.innerHTML = `
+                    <p class="font-semibold text-gray-800">${cat.name}</p>
+                    <p class="text-sm text-gray-600">${cat.amount.toLocaleString('hu-HU')} Ft | ${periodText} (${cat.startDate})</p>
+                `;
+
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'flex space-x-2';
+
+                const editBtn = document.createElement('button');
+                editBtn.className = 'text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-gray-200';
+                editBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>';
+                editBtn.onclick = () => openManagedCategoryEditModal(cat);
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-gray-200';
+                deleteBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>';
+                deleteBtn.onclick = () => confirmDeleteManagedCategory(cat.id);
+
+                actionsDiv.appendChild(editBtn);
+                actionsDiv.appendChild(deleteBtn);
+
+                row.appendChild(contentDiv);
+                row.appendChild(actionsDiv);
+                list.appendChild(row);
+            });
+            
+            // Tétel rögzítés modál kategória dropdown frissítése
+            const itemCategorySelect = document.getElementById('item-category');
+            itemCategorySelect.innerHTML = '<option value="">-- Válassz --</option>';
+            categories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat.name;
+                option.textContent = cat.name;
+                itemCategorySelect.appendChild(option);
+            });
+        }
+
+        // -----------------------------------------------------
+        // IV. Modál Műveletek (Megnyitás, Bezárás)
+        // -----------------------------------------------------
+
+        function openAddModal() {
+            currentItemToEdit = null;
+            const modal = document.getElementById('item-modal');
+            const form = document.getElementById('item-form');
+            form.reset();
+            document.getElementById('item-modal-title').textContent = 'Új Tétel Rögzítése';
+            document.getElementById('item-id').value = '';
+            modal.classList.remove('hidden');
+        }
+
+        function openEditModal(item) {
+            currentItemToEdit = item;
+            const modal = document.getElementById('item-modal');
+            document.getElementById('item-modal-title').textContent = 'Tétel Szerkesztése';
+            
+            // Adatok betöltése
+            document.getElementById('item-id').value = item.id;
+            document.getElementById('item-name').value = item.name;
+            document.getElementById('item-amount').value = item.amount;
+            document.getElementById('item-date').value = item.date;
+            document.getElementById('item-isPaid').checked = item.isPaid;
+            document.getElementById('item-category').value = item.category || '';
+            
+            modal.classList.remove('hidden');
+        }
+        
+        function openManagedCategoryAddModal() {
+            currentManagedCategoryToEdit = null;
+            document.getElementById('managed-categories-modal').classList.add('hidden'); // Bezárja a listát
+            const modal = document.getElementById('managed-category-modal');
+            const form = document.getElementById('managed-category-form');
+            form.reset();
+            document.getElementById('managed-category-modal-title').textContent = 'Új Kezelt Tétel Rögzítése';
+            document.getElementById('managed-category-id').value = '';
+            modal.classList.remove('hidden');
+        }
+        
+        function openManagedCategoryEditModal(category) {
+            currentManagedCategoryToEdit = category;
+            document.getElementById('managed-categories-modal').classList.add('hidden'); // Bezárja a listát
+            const modal = document.getElementById('managed-category-modal');
+            document.getElementById('managed-category-modal-title').textContent = 'Kezelt Tétel Szerkesztése';
+
+            // Adatok betöltése
+            document.getElementById('managed-category-id').value = category.id;
+            document.getElementById('managed-category-name').value = category.name;
+            document.getElementById('managed-category-amount').value = category.amount;
+            document.getElementById('managed-category-period').value = category.recurringPeriod;
+            document.getElementById('managed-category-start-date').value = category.startDate; // yyyy-mm formátum
+            
+            modal.classList.remove('hidden');
+        }
+
+        function confirmDeleteItem(itemId) {
+            const modal = document.getElementById('confirmation-modal');
+            document.getElementById('confirm-modal-title').textContent = 'Tétel Törlése';
+            document.getElementById('confirm-modal-body').textContent = 'Biztosan törölni szeretnéd ezt a tételt? Ez a művelet visszavonhatatlan.';
+            
+            const confirmBtn = document.getElementById('confirm-delete-btn');
+            // Eltávolítja az előző eseménykezelőt és újat állít be
+            confirmBtn.onclick = async () => {
+                await deleteItem(itemId);
+                hideAllModals();
+            };
+
+            modal.classList.remove('hidden');
+        }
+        
+        function confirmDeleteManagedCategory(categoryId) {
+            const modal = document.getElementById('confirmation-modal');
+            document.getElementById('confirm-modal-title').textContent = 'Kezelt Tétel Törlése';
+            document.getElementById('confirm-modal-body').textContent = 'Biztosan törölni szeretnéd ezt a kezelt tételt (kategóriát)?';
+            
+            const confirmBtn = document.getElementById('confirm-delete-btn');
+            // Eltávolítja az előző eseménykezelőt és újat állít be
+            confirmBtn.onclick = async () => {
+                await deleteManagedCategory(categoryId);
+                hideAllModals();
+            };
+
+            modal.classList.remove('hidden');
+        }
+
+        // -----------------------------------------------------
+        // V. Adatkezelés (Firestore CRUD)
+        // -----------------------------------------------------
+
+        /**
+         * Adatok lekérése a Firestore-ból valós időben.
+         */
+        function listenForData() {
+            if (!currentUserId) return; 
+
+            const itemsCollectionPath = getCollectionPath('items');
+            const managedCategoriesCollectionPath = getCollectionPath('managedCategories');
+            
+            if (!itemsCollectionPath || !managedCategoriesCollectionPath) return;
+
+            // 1. ITEMS (Tételek) meghallgatása
+            onSnapshot(collection(db, itemsCollectionPath), (snapshot) => {
+                const items = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    items.push({ id: doc.id, ...data });
+                });
+                updateItemsDisplay(items);
+                calculateSummary(items);
+            }, (error) => {
+                console.error("Hiba az items lekérdezésekor:", error);
+                showToast("Hiba történt az adatok betöltésekor.", true);
+            });
+
+            // 2. MANAGED CATEGORIES (Kezelt kategóriák) meghallgatása
+            onSnapshot(collection(db, managedCategoriesCollectionPath), (snapshot) => {
+                const managedCategories = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    managedCategories.push({ id: doc.id, ...data });
+                });
+                window.managedCategories = managedCategories;
+                renderManagedCategoriesList(managedCategories);
+            }, (error) => {
+                console.error("Hiba az managedCategories lekérdezésekor:", error);
+            });
+        }
+        
+        /**
+         * Új tétel mentése / létező tétel frissítése
+         */
+        async function saveItem(e) {
+            e.preventDefault();
+            hideAllModals();
+            
+            const itemId = document.getElementById('item-id').value;
+            const name = document.getElementById('item-name').value;
+            const amount = parseFloat(document.getElementById('item-amount').value);
+            const date = document.getElementById('item-date').value;
+            const isPaid = document.getElementById('item-isPaid').checked;
+            const category = document.getElementById('item-category').value;
+
+            const itemData = {
+                name: name,
+                amount: amount,
+                date: date,
+                isPaid: isPaid,
+                category: category || null,
+                updatedAt: new Date().toISOString(),
+                // Alapértelmezett beállítás a nem ismétlődő tételekhez
+                isRecurring: false,
+                recurringPeriod: null,
+                originalId: null,
+                lastGenerated: null, 
+                generationCount: 0 
+            };
+            
+            try {
+                const itemsCollectionPath = getCollectionPath('items');
+                if (!itemsCollectionPath) throw new Error("A felhasználói ID nem érhető el.");
+
+                if (itemId) {
+                    // Frissítés
+                    await updateDoc(doc(db, itemsCollectionPath, itemId), itemData);
+                    showToast('Tétel sikeresen frissítve!');
+                } else {
+                    // Új hozzáadása
+                    itemData.createdAt = new Date().toISOString();
+                    await addDoc(collection(db, itemsCollectionPath), itemData);
+                    showToast('Új tétel sikeresen rögzítve!');
+                }
+            } catch (error) {
+                console.error("Hiba a tétel mentésekor:", error);
+                showToast(`Hiba a mentés során: ${error.message}`, true);
+            }
+        }
+
+        /**
+         * Tétel törlése
+         */
+        async function deleteItem(itemId) {
+            try {
+                const itemsCollectionPath = getCollectionPath('items');
+                if (!itemsCollectionPath) throw new Error("A felhasználói ID nem érhető el.");
+
+                await deleteDoc(doc(db, itemsCollectionPath, itemId));
+                showToast('Tétel sikeresen törölve!');
+            } catch (error) {
+                console.error("Hiba a tétel törlésekor:", error);
+                showToast(`Hiba a törlés során: ${error.message}`, true);
+            }
+        }
+        
+        /**
+         * Kezelt kategória mentése
+         */
+        async function saveManagedCategory(e) {
+            e.preventDefault();
+            hideAllModals();
+
+            const categoryId = document.getElementById('managed-category-id').value;
+            const name = document.getElementById('managed-category-name').value;
+            const amount = parseFloat(document.getElementById('managed-category-amount').value);
+            const period = document.getElementById('managed-category-period').value;
+            const startDate = document.getElementById('managed-category-start-date').value;
+            
+            const categoryData = {
+                name: name,
+                amount: amount,
+                recurringPeriod: period,
+                startDate: startDate, // yyyy-mm formátum
+                updatedAt: new Date().toISOString()
+            };
+
+            try {
+                const managedCategoriesCollectionPath = getCollectionPath('managedCategories');
+                if (!managedCategoriesCollectionPath) throw new Error("A felhasználói ID nem érhető el.");
+                
+                if (categoryId) {
+                    // Frissítés
+                    await updateDoc(doc(db, managedCategoriesCollectionPath, categoryId), categoryData);
+                    showToast('Kezelt tétel sikeresen frissítve!');
+                } else {
+                    // Új hozzáadása
+                    categoryData.createdAt = new Date().toISOString();
+                    await addDoc(collection(db, managedCategoriesCollectionPath), categoryData);
+                    showToast('Új kezelt tétel sikeresen rögzítve!');
+                }
+            } catch (error) {
+                console.error("Hiba a kezelt kategória mentésekor:", error);
+                showToast(`Hiba a mentés során: ${error.message}`, true);
+            }
+        }
+
+        /**
+         * Kezelt kategória törlése
+         */
+        async function deleteManagedCategory(categoryId) {
+            try {
+                const managedCategoriesCollectionPath = getCollectionPath('managedCategories');
+                if (!managedCategoriesCollectionPath) throw new Error("A felhasználói ID nem érhető el.");
+
+                await deleteDoc(doc(db, managedCategoriesCollectionPath, categoryId));
+                showToast('Kezelt tétel sikeresen törölve!');
+                
+                // Vissza a lista modálhoz (opcionális)
+                document.getElementById('managed-categories-modal').classList.remove('hidden'); 
+            } catch (error) {
+                console.error("Hiba a kezelt kategória törlésekor:", error);
+                showToast(`Hiba a törlés során: ${error.message}`, true);
+            }
+        }
+        
+        // -----------------------------------------------------
+        // VI. Rendszeres Tételek Kezelése (Generátor)
+        // -----------------------------------------------------
+
+        /**
+         * Egy dátumot ad vissza yyyy-mm formátumban.
+         * @param {Date} date 
+         */
+        function formatDateToMonthYear(date) {
+            return date.toISOString().slice(0, 7); // yyyy-mm
+        }
+
+        /**
+         * Kiszedi a hónap utolsó napjának dátumát yyyy-mm-dd formátumban.
+         * @param {string} monthYear - yyyy-mm
+         */
+        function getLastDayOfMonth(monthYear) {
+             const [year, month] = monthYear.split('-').map(Number);
+             const date = new Date(year, month, 0); // month 1-based, day 0 for last day of prev month
+             return formatDateToDate(date);
+        }
+
+        /**
+         * Egy dátumot ad vissza yyyy-mm-dd formátumban.
+         * @param {Date} date 
+         */
+        function formatDateToDate(date) {
+            return date.toISOString().slice(0, 10); // yyyy-mm-dd
+        }
+        
+        /**
+         * Dátum hozzáadása egy yyyy-mm dátumhoz (csak hónapban).
+         * @param {string} monthYear - yyyy-mm
+         * @param {number} months - Hónapok száma
+         */
+        function addMonthsToMonthYear(monthYear, months) {
+            const [year, month] = monthYear.split('-').map(Number);
+            const date = new Date(year, month - 1, 1);
+            date.setMonth(date.getMonth() + months);
+            return formatDateToMonthYear(date);
+        }
+
+        /**
+         * Rendszeres tételek generálása a jelenlegi hónapra, ha szükséges.
+         */
+        async function handleNewMonthGeneration() {
+            if (!currentUserId || window.managedCategories.length === 0) return;
+
+            const itemsCollectionPath = getCollectionPath('items');
+            if (!itemsCollectionPath) return;
+
+            const today = new Date();
+            const currentMonthYear = formatDateToMonthYear(today);
+
+            for (const category of window.managedCategories) {
+                try {
+                    // A kezelt tételhez tartozó, már létező tételek lekérése
+                    const q = query(
+                        collection(db, itemsCollectionPath),
+                        where('originalId', '==', category.id),
+                        where('isRecurring', '==', true)
+                    );
+                    
+                    const snapshot = await fetchWithBackoff(() => getDocs(q));
+                    const generatedItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                    let lastGeneratedMonth = category.startDate; // Kezdjük a kezdeti dátummal
+                    
+                    if (generatedItems.length > 0) {
+                        // Keresd meg a legutoljára generált tételt a gyűjteményből
+                        generatedItems.sort((a, b) => new Date(b.date) - new Date(a.date));
+                        lastGeneratedMonth = generatedItems[0].date.slice(0, 7);
+                    }
+
+                    // Meghatározzuk, hogy hány hónapot kell előre generálni
+                    let monthsToAdd = 0;
+                    switch (category.recurringPeriod) {
+                        case 'monthly': monthsToAdd = 1; break;
+                        case 'quarterly': monthsToAdd = 3; break;
+                        case 'yearly': monthsToAdd = 12; break;
+                        default: continue; 
+                    }
+
+                    let nextMonthYear = addMonthsToMonthYear(lastGeneratedMonth, monthsToAdd);
+                    
+                    // Generálás, amíg a következő generált hónap nem lépi túl a jelenlegi hónapot
+                    while (nextMonthYear <= currentMonthYear) {
+                        const newDueDate = getLastDayOfMonth(nextMonthYear);
+                        
+                        const newItem = {
+                            name: category.name,
+                            amount: category.amount,
+                            date: newDueDate,
+                            isPaid: false, // Alapértelmezés szerint nem fizetett
+                            category: category.name,
+                            isRecurring: true,
+                            recurringPeriod: category.recurringPeriod,
+                            originalId: category.id, // Hivatkozás a forrás kategóriára
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString()
+                        };
+
+                        await fetchWithBackoff(() => addDoc(collection(db, itemsCollectionPath), newItem));
+                        console.log(`Generált tétel: ${category.name} a(z) ${nextMonthYear} hónapra.`);
+
+                        lastGeneratedMonth = nextMonthYear;
+                        nextMonthYear = addMonthsToMonthYear(lastGeneratedMonth, monthsToAdd);
+                    }
+
+                } catch (error) {
+                    console.error(`Hiba a(z) ${category.name} tétel generálásakor:`, error);
+                }
+            }
+        }
+        
+        // -----------------------------------------------------
+        // VII. Autentikáció és Eseménykezelők
+        // -----------------------------------------------------
+
+        /**
+         * Autentikáció indítása a beágyazott token vagy anonim bejelentkezés segítségével.
+         */
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Autentikációs hiba:", error);
+                showToast("Autentikációs hiba. Kérjük, ellenőrizze a beállításokat.", true);
+            }
+        }
+
+        // A felhasználó bejelentkezésének ellenőrzése
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                userIdDisplay.textContent = currentUserId;
+                loadingOverlay.classList.add('opacity-0');
+                loadingOverlay.addEventListener('transitionend', () => {
+                    loadingOverlay.style.display = 'none';
+                    mainContent.style.display = 'block';
+                }, { once: true });
+                
+                listenForData();
+                handleNewMonthGeneration(); // Rendszeres tételek ellenőrzése és generálása
+            } else {
+                // Anonim bejelentkezés esetén is lesz felhasználó (user.uid), ez a blokk elvileg nem fut le.
+                console.log("Nincs bejelentkezett felhasználó. Vissza anonim módba.");
+                // Ha valamiért lefutna, a listenForData nem indul el.
+            }
+        });
+
+        // Eseménykezelők
+        document.getElementById('open-add-modal-btn').addEventListener('click', openAddModal);
+        document.getElementById('open-managed-categories-btn').addEventListener('click', () => {
+            document.getElementById('managed-categories-modal').classList.remove('hidden');
+        });
+        document.getElementById('item-form').addEventListener('submit', saveItem);
+        document.getElementById('managed-category-form').addEventListener('submit', saveManagedCategory);
+
+        // Első lépés: Autentikáció indítása
+        initAuth();
+
+    </script>
+    
 </body>
-
 </html>
-
-
