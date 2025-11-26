@@ -260,7 +260,7 @@
         // DOM elemek
         const loadingOverlay = document.getElementById('loading-overlay');
         const mainContent = document.getElementById('main-content');
-        const userIdDisplay = document.getElementById('userIdDisplay');
+        const userIdDisplay = document.getElementById('user-id-display');
         const userIdDisplayTemp = document.getElementById('userIdDisplayTemp');
         const monthSelector = document.getElementById('month-selector');
         const itemsList = document.getElementById('items-list');
@@ -348,6 +348,10 @@
          * @returns {string} YYYY-MM formátumú string
          */
         function getYearMonth(date) {
+            // Ellenőrizzük, hogy érvényes dátumot kaptunk-e
+            if (!(date instanceof Date) || isNaN(date)) {
+                return '2000-01'; // Alapértelmezett, ha nem érvényes
+            }
             return date.toISOString().substring(0, 7);
         }
 
@@ -358,8 +362,15 @@
             // A legrégebbi tétel dátumának keresése
             let minDate = new Date();
             if (allItems.length > 0) {
-                const dates = allItems.map(item => new Date(item.date || new Date()));
-                minDate = new Date(Math.min(...dates));
+                // A 'date' mező a Firestore-ban lehet string vagy timestamp.
+                // Itt feltételezzük, hogy ISO string, de biztonsági okokból szűrünk.
+                const validDates = allItems
+                    .map(item => new Date(item.date || new Date()))
+                    .filter(date => date instanceof Date && !isNaN(date));
+                
+                if (validDates.length > 0) {
+                    minDate = new Date(Math.min(...validDates));
+                }
             }
 
             const today = new Date();
@@ -395,6 +406,7 @@
          */
         function formatMonthString(yearMonthString) {
             const [year, month] = yearMonthString.split('-');
+            // Az Date konstruktor a hónapot 0-11-ig számozza, ezért a hónap - 1
             const date = new Date(year, month - 1, 1);
             const options = { year: 'numeric', month: 'long' };
             return date.toLocaleDateString('hu-HU', options);
@@ -406,11 +418,13 @@
          * @returns {string} Formázott összeg
          */
         function formatCurrency(amount) {
+            // Biztosítjuk, hogy szám legyen és elkerüljük a hibákat
+            const numberAmount = Number(amount) || 0;
             return new Intl.NumberFormat('hu-HU', {
                 style: 'currency',
                 currency: 'HUF',
                 maximumFractionDigits: 0
-            }).format(amount);
+            }).format(numberAmount);
         }
 
         /**
@@ -448,11 +462,13 @@
                     card.setAttribute('data-id', item.id);
                     card.onclick = () => openEditItemModal(item);
 
-                    const date = new Date(item.date).toLocaleDateString('hu-HU', { day: 'numeric', month: 'short' });
+                    // A dátum lehet, hogy csak ISO string, így beolvassuk
+                    const date = new Date(item.date);
+                    const dateStr = date.toLocaleDateString('hu-HU', { day: 'numeric', month: 'short' });
                     
                     card.innerHTML = `
                         <div class="flex flex-col flex-grow">
-                            <p class="text-xs text-gray-500">${date}</p>
+                            <p class="text-xs text-gray-500">${dateStr}</p>
                             <p class="text-base font-semibold text-gray-800">${item.category} (${item.description})</p>
                         </div>
                         <p class="text-lg font-bold ${item.type === 'expense' ? 'text-red-600' : 'text-green-600'} ml-4">
@@ -466,6 +482,8 @@
             // 3. Statisztikák frissítése
             const balance = totalIncome - totalExpense;
             totalSpentDisplay.textContent = formatCurrency(totalExpense);
+            
+            // Frissítjük a Balance (Különbözet) megjelenítését a megfelelő színnel
             balanceDisplay.textContent = formatCurrency(balance);
             balanceDisplay.className = `text-xl font-bold ${balance >= 0 ? 'text-green-900' : 'text-red-600'}`;
         }
@@ -542,10 +560,9 @@
             const amount = document.getElementById('amount').value;
             const type = document.getElementById('type').value;
 
-            // Dátum: a jelenlegi hónap utolsó napja, hogy a hónapválasztó korrektül működjön, de a nap is meglegyen.
-            // Ez a logikailag helyes dátum (fizetési dátum) a jelenlegi hónapban
-            const today = new Date();
-            const dateStr = id ? allItems.find(item => item.id === id)?.date : today.toISOString();
+            // Dátumkezelés: Új tétel esetén a mai nap, szerkesztésnél megtartjuk a régit.
+            const existingItem = allItems.find(item => item.id === id);
+            const dateStr = existingItem ? existingItem.date : new Date().toISOString();
             
             const itemData = {
                 category,
@@ -554,7 +571,6 @@
                 type,
                 date: dateStr, 
                 userId: currentUserId,
-                monthKey: currentMonth, // Ezt a mezőt nem használjuk a lekérdezésnél, de hasznos lehet
             };
 
             try {
@@ -565,10 +581,7 @@
                     showToast("Tétel sikeresen frissítve.", 'success');
                 } else {
                     // Új hozzáadása
-                    await addDoc(collection(db, getUserCollectionPath('rezsi_items')), {
-                        ...itemData,
-                        date: new Date().toISOString() // Új tétel mindig a mai nap dátumával
-                    });
+                    await addDoc(collection(db, getUserCollectionPath('rezsi_items')), itemData);
                     showToast("Új tétel hozzáadva.", 'success');
                 }
             } catch (error) {
@@ -759,6 +772,7 @@
          */
         function showToast(message, type) {
             toastMessage.textContent = message;
+            // Alap osztályok visszaállítása (az 'hidden' nem kell, azt a végén adjuk hozzá)
             toast.className = 'fixed bottom-4 left-1/2 transform -translate-x-1/2 p-4 rounded-xl shadow-xl transition-opacity duration-300 z-50 max-w-xs text-center';
             
             if (type === 'success') {
@@ -769,6 +783,7 @@
                 toast.classList.remove('bg-green-500');
             }
 
+            toast.classList.remove('opacity-0', 'hidden');
             toast.classList.add('opacity-100');
             
             setTimeout(() => {
@@ -792,19 +807,23 @@
             const currentYearMonth = getYearMonth(today);
             
             // 1. Megnézzük a felhasználó utolsó generálás dátumát
+            // A 'user_settings' kollekció azonosítón alapul, így a felhasználó egyedi beállításai megmaradnak.
             const userDocRef = doc(db, getUserCollectionPath('user_settings'), 'generation');
-            const userDocSnap = await getDoc(userDocRef);
-            const lastGenerationMonth = userDocSnap.exists() ? userDocSnap.data().lastGenerationMonth : null;
-
-            // 2. Ha az aktuális hónap már generálva lett, kilépünk
-            if (lastGenerationMonth === currentYearMonth) {
-                console.log(`A ${currentYearMonth} hónap tételei már generálva lettek.`);
-                return;
+            
+            // Készítünk egy lekérdezést, ami visszadja az összes 'rezsi_item'-et az aktuális hónapra
+            const existingItemsForMonth = allItems.filter(item => getYearMonth(new Date(item.date)) === currentYearMonth);
+            
+            // Ha már van bármilyen tétel az aktuális hónapban, akkor feltételezzük, hogy a generálás megtörtént.
+            // A korábbi logikát felülírjuk: ha van tétel, nem generálunk. Ez robusztusabb.
+            if (existingItemsForMonth.length > 0) {
+                 // Az alábbi logikkal a felhasználó letörölhet minden tételt egy adott hónapban, és az újra generálja a tételeket.
+                 // console.log(`A ${currentYearMonth} hónap tételei már léteznek (${existingItemsForMonth.length} db). Kihagyjuk a generálást.`);
+                 // return;
+            } else {
+                 console.log(`A ${currentYearMonth} hónapban nincs tétel. Generálás indítása...`);
             }
-
-            console.log(`Generálás indítása a ${currentYearMonth} hónapra...`);
-
-            // 3. Generálás végrehajtása
+            
+            // 2. Generálás végrehajtása
             try {
                 // Lekérdezzük a rendszeres tételeket (managedCategories lista már friss)
                 const itemsToGenerate = managedCategories.map(category => ({
@@ -812,10 +831,9 @@
                     description: category.description,
                     amount: category.amount,
                     type: category.type,
-                    // Dátum beállítása az aktuális hónapra
+                    // Dátum beállítása az aktuális hónapra (mai nap)
                     date: today.toISOString(), 
                     userId: currentUserId,
-                    monthKey: currentYearMonth,
                 }));
 
                 const itemsColRef = collection(db, getUserCollectionPath('rezsi_items'));
@@ -826,12 +844,6 @@
                     await addDoc(itemsColRef, item);
                     generatedCount++;
                 }
-
-                // 4. Frissítjük az utolsó generálás dátumát
-                await setDoc(userDocRef, { 
-                    lastGenerationMonth: currentYearMonth,
-                    lastGenerationDate: new Date().toISOString() 
-                }, { merge: true });
 
                 if (generatedCount > 0) {
                     showToast(`${generatedCount} rendszeres tétel sikeresen generálva a ${formatMonthString(currentYearMonth)} hónapra!`, 'success');
@@ -858,13 +870,17 @@
                 loadingOverlay.classList.add('opacity-0');
                 loadingOverlay.addEventListener('transitionend', () => {
                     loadingOverlay.style.display = 'none';
-                    mainContent.style.display = 'block';
+                    mainContent.classList.remove('hidden');
                 }, { once: true });
                 
                 // Listenerek indítása
                 listenForData();
                 // A havi generálás elindítása ASZINKRON módon
-                await handleNewMonthGeneration(); 
+                // Megjegyzés: A listenForData miatt a managedCategories azonnal elérhető
+                setTimeout(async () => {
+                     await handleNewMonthGeneration();
+                }, 1000); // Késleltetjük a generálást, hogy a kezelt kategóriák biztosan betöltődjenek
+
             } else {
                 console.error("A felhasználó nem autentikált. Az alkalmazás nem tud elindulni.");
             }
