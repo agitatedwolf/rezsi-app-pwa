@@ -3,22 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rezsi Nyilvántartó (PWA)</title>
-    <link rel="manifest" href="data:application/json;base64,eyJkZWZhdWx0X2xvY2FsZSI6Imh1IiwibmFtZSI6IlJlenNpIE55aWx2XHUwMGUxbnRcdTAwZjMiLCJzaG9ydF9uYW1lIjoiUmV6c2kgQXBwIiwiZGVzY3JpcHRpb24iOiJHYXogVmlsbGFueSBWXHUwMGUxeiBLXHUwMGY2bHRzXHUwMGU5Z2tcdTAwZjYiLCJzdGFydF91cmwiOiIuL2luZGV4Lmh0bWwiLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsInRoZW1lX2NvbG9yIjoiIzM0OThlYiIsImJhY2tncm91bmRfY29sb3IiOiIjZDRlMmYyIiwiaWNvbnMiOiIifQ==">
-    <meta name="theme-color" content="#3498eb">
-    
+    <title>Firebase Kapcsolat Teszt</title>
+    <!-- Tailwind CSS a minimális stílushoz -->
     <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 flex items-center justify-center min-h-screen">
+    
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-lg text-center">
+        <h1 class="text-3xl font-bold mb-4 text-blue-600">Firebase Kapcsolat Teszt</h1>
+        
+        <!-- Statusz kijelző elem -->
+        <div id="status-message" class="p-4 rounded-lg bg-gray-100 text-gray-700 font-mono">
+            Kapcsolódás a Firebase-hez...
+        </div>
+        
+        <!-- Felhasználói ID kijelző -->
+        <p class="mt-4 text-sm text-gray-500">
+            Felhasználó ID (UID): <span id="user-id" class="font-bold text-gray-800">Várakozás...</span>
+        </p>
+    </div>
 
+    <!-- Firebase szkriptek -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, updateDoc, setDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, orderBy, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-lite.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        // A Firestore-ra nincs szükség a teszthez, de ha kellene, itt a helye:
+        // import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-
-        // --- FIREBASE KONFIGURÁCIÓ (HELYES KULCSOKKAL) ---
+        // --- FIREBASE KONFIGURÁCIÓ (KÉRLEK CSERÉLD LE A '...' RÉSZT A VALÓDI KULCSODRA!) ---
         const firebaseConfig = {
-            apiKey: "AIzaSyC...QDQvZnag2g1pTB4MWKWjrjEIn0Q", // A TE KULCSOD
+            apiKey: "AIzaSyC...QDQvZnag2g1pTB4MWKWjrjEIn0Q", 
             authDomain: "rezsi-nyilvantarto.firebaseapp.com",
             projectId: "rezsi-nyilvantarto",
             storageBucket: "rezsi-nyilvantarto.firebasestorage.app",
@@ -27,148 +41,43 @@
             measurementId: "G-RNXJ4MXTQY"
         };
         
-        // --- HELYES MODULÁRIS INICIALIZÁLÁS ---
-        console.log("LOG: 00 - Firebase inicializálás elindult.");
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        getAnalytics(app); 
+        // DOM elemek elérése
+        const statusEl = document.getElementById('status-message');
+        const userIdEl = document.getElementById('user-id');
 
-        // ___ GLOBÁLIS VÁLTOZÓK ___
-        let userID = null;
-        let currentSettings = null; 
-        let currentMonthId = null;
-        let billsCache = [];
-        let recurringBills = [];
-        let currentMeters = [];
-
-
-        // ___ SEGÉDFÜGGVÉNYEK VÁZAI (PÓTOLD AZ EREDETI KÓDBÓL!) ___
-        window.formatHUF = (amount) => { return amount; };
-        window.formatHUFNoCurrency = (amount) => { return amount; };
-        window.formatDate = (timestamp) => { return timestamp; };
-        window.deleteDocument = async (collection, docId) => { console.log('LOG: deleteDocument futott'); }; 
-
-
-        // --- HIBATŰRŐ loadSettings() - (NINCS BENNE renderSettings HÍVÁS!) ---
-        async function loadSettings() {
-            console.log("LOG: 03 - loadSettings Hívás indult.");
+        async function initializeAndAuthenticate() {
             try {
-                const docRef = doc(db, "users", userID);
-                const docSnap = await getDoc(docRef); 
+                // 1. Inicializálás
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                
+                statusEl.textContent = 'Firebase inicializálás sikeres. Anonim bejelentkezés...';
 
-                const defaultSettings = {
-                    categories: ['Lakás/rezsi', 'Élelmiszer', 'Közlekedés', 'Egészség', 'Szórakozás', 'Egyéb'],
-                    currency: 'HUF',
-                    startMonth: new Date().toISOString().substring(0, 7)
-                };
+                // 2. Anonim Bejelentkezés
+                const result = await signInAnonymously(auth);
+                const userID = result.user.uid;
 
-                if (docSnap.exists()) {
-                    currentSettings = docSnap.data();
-                    console.log("LOG: 04 - loadSettings sikeresen betöltött.");
-                } else {
-                    await setDoc(docRef, defaultSettings);
-                    currentSettings = defaultSettings;
-                    console.log("LOG: 04 - loadSettings sikeresen létrehozott defaultot.");
-                }
+                // 3. Sikeres frissítés
+                statusEl.textContent = 'SIKERES FIREBASE BEJELENTKEZÉS! (Auth működik)';
+                statusEl.classList.remove('bg-gray-100');
+                statusEl.classList.add('bg-green-100', 'text-green-700', 'font-bold');
+                userIdEl.textContent = userID;
+
+                console.log("Firebase Teszt: SIKERES. UID:", userID);
+
             } catch (error) {
-                // Hiba esetén alapértelmezett beállításokkal fut tovább
-                console.error("LOG: 04 - loadSettings HIBA! Alapértelmezett beállításokkal fut tovább.", error);
-                currentSettings = { categories: [], currency: 'HUF', startMonth: new Date().toISOString().substring(0, 7) };
+                // 4. Hiba
+                statusEl.textContent = 'HIBA! Nem sikerült a Firebase bejelentkezés. Ellenőrizd az API kulcsot és a konfigurációt!';
+                statusEl.classList.remove('bg-gray-100');
+                statusEl.classList.add('bg-red-100', 'text-red-700', 'font-bold');
+                userIdEl.textContent = 'HIBA: ' + error.message;
+
+                console.error("Firebase Teszt: HIBA", error);
             }
         }
-        
-        // --- PÓTOLANDÓ ADATBETÖLTŐ ÉS RENDERELŐ FÜGGVÉNYEK VÁZAI (ÜRES VÁZAK) ---
-        async function loadBills() { billsCache = []; console.log('LOG: 05 - loadBills futott.'); } 
-        async function loadRecurringBills() { recurringBills = []; console.log('LOG: 06 - loadRecurringBills futott.'); } 
-        async function loadMeterReadings() { currentMeters = []; console.log('LOG: 07 - loadMeterReadings futott.'); } 
-        function renderSettings() { console.log('LOG: 08 - renderSettings futott.'); } 
 
-
-        // --- renderApp() - JAVÍTOTT VÁZ (Ellenőrzi, hogy létezik-e az elem, mielőtt módosítja) ---
-        function renderApp() {
-            console.log("LOG: 09 - renderApp elindult.");
-            const statusDiv = document.getElementById('app-status');
-            
-            // EZ A KRITIKUS JAVÍTÁS! Megakadályozza a "Cannot read properties of null" hibát.
-            if (statusDiv) { 
-                // KÉNYSZERÍTETT ELREJTÉS
-                statusDiv.style.display = 'none'; 
-                console.log("LOG: 10 - Betöltő képernyő ELREJTVE (style.display = 'none').");
-            }
-
-            const appContainer = document.getElementById('app-container');
-            if (appContainer) { 
-                // Placeholder üzenet:
-                appContainer.innerHTML = `
-                    <h1 class="text-2xl font-bold text-blue-600 mb-4">Üdvözlünk a Rezsi Nyilvántartóban!</h1>
-                    <p class="text-gray-700">A Firebase Auth és a Settings betöltése sikeres! Már csak a felület hiányzik.</p>
-                    <p class="mt-4 font-bold text-red-500">Kérlek, pótold a **renderApp()** függvény és a többi függő függvény tartalmát az eredeti kódodból!</p>
-                `;
-                appContainer.classList.remove('hidden'); // MEGJELENIK A FŐ TARTALOM
-                console.log("LOG: 11 - Fő konténer látható.");
-            }
-            
-            // ITT KELL MEGHÍVNI AZ EREDETI RENDERELÉSI FÜGGVÉNYEKET (pl.: renderBillList(); renderSummaryChart();)
-        }
-
-
-        // ___ FŐ LOGIKA - JAVÍTOTT HÍVÁSI SORREND ___
-        async function loadInitialData() {
-            console.log("LOG: 02 - loadInitialData elindult.");
-            
-            await loadSettings(); 
-            
-            // A renderSettings-et most itt hívjuk meg!
-            if (!currentMonthId) {
-                currentMonthId = new Date().toISOString().substring(0, 7);
-            }
-            renderSettings(); 
-            
-            await loadBills(); 
-            await loadRecurringBills(); 
-            await loadMeterReadings(); 
-            
-            renderApp(); 
-        }
-
-        // --- AUTH LOGIKA ---
-        onAuthStateChanged(auth, async (user) => {
-            const statusDiv = document.getElementById('app-status');
-            if (statusDiv) statusDiv.textContent = 'Hitelesítés...';
-
-            if (user) {
-                userID = user.uid;
-                if (statusDiv) statusDiv.textContent = `Felhasználó: ${userID.substring(0, 8)}... Betöltés...`;
-                console.log("LOG: 01 - Auth sikeres, user ID megvan. loadInitialData hívása.");
-                await loadInitialData();
-            } else {
-                try {
-                    const result = await signInAnonymously(auth);
-                    userID = result.user.uid;
-                    if (statusDiv) statusDiv.textContent = `Felhasználó: ${userID.substring(0, 8)}... Betöltés...`;
-                    console.log("LOG: 01 - Auth sikeres, user ID megvan. loadInitialData hívása.");
-                    await loadInitialData();
-                } catch (error) {
-                    if (statusDiv) statusDiv.innerHTML = `<span class="text-red-500">Hiba: Nem sikerült bejelentkezni. ${error.message}</span>`;
-                    console.error("LOG: 01 - Authentication error:", error);
-                }
-            }
-        });
+        // Fő funkció elindítása
+        initializeAndAuthenticate();
     </script>
-</head>
-<body class="bg-gray-100 font-sans">
-    
-    <div id="app-status" class="fixed inset-0 bg-white flex flex-col items-center justify-center p-4 z-50">
-        <svg class="animate-spin -ml-1 mr-3 h-10 w-10 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <div class="text-xl text-gray-700 mt-4">Betöltés...</div>
-    </div>
-
-    <div id="app-container" class="p-4 hidden">
-        </div>
-
-    </body>
+</body>
 </html>
