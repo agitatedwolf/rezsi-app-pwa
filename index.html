@@ -126,7 +126,17 @@
             await loadBills();
             await loadRecurringBills();
             await loadMeterReadings(); // Új mérőállások betöltése
-            
+            function renderApp() {
+    // --- TESZT VIZUÁLIS MEGERŐSÍTÉS ---
+    document.getElementById('app-container').innerHTML = '<h1>✅ ALKALMAZÁS BETÖLTVE! ✅</h1>';
+
+    // Ha ez a szöveg megjelenik, a kód fut, és a renderelés többi része hibás.
+    
+    // Ide jön az app valódi tartalmának renderelése.
+    // ... A FÜGGVÉNY EREDETI TARTALMÁT EZUTÁN KELL BEILLESZTENI!
+    
+    // Például: renderSummaryChart(); renderBillList(); stb.
+}
             renderApp();
             
             // alert("loadInitialData sikeresen befejeződött.");
@@ -160,3 +170,4 @@
 <body class="bg-gray-100 font-sans">
     </body>
 </html>
+
