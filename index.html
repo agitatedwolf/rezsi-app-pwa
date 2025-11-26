@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="hu" class="transition-colors duration-500">
+<html lang="hu">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,757 +8,602 @@
     <link rel="manifest" href="data:application/json;base64,eyJkZWZhdWx0X2xvY2FsZSI6Imh1IiwibmFtZSI6IlJlenNpIE55aWx2XHUwMGUxbnRcdTAwZjMiLCJzaG9ydF9uYW1lIjoiUmV6c2kgQXBwIiwiZGVzY3JpcHRpb24iOiJHYXogVmlsbGFueSBWXHUwMGUxeiBLXHUwMGY2bHRzXHUwMGU5Z2tcdTAwZjYiLCJzdGFydF91cmwiOiIuL2luZGV4Lmh0bWwiLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsInRoZW1lX2NvbG9yIjoiIzM0OThlYiIsImJhY2tncm91bmRfY29sb3IiOiIjZDRlMmYyIiwiaWNvbnMiOiIifQ==">
     <meta name="theme-color" content="#3498eb">
     
-    <!-- Tailwind CSS CDN és konfiguráció (dark mode: class) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class', // Sötét mód engedélyezése 'dark' osztály alapján
-            theme: {
-                extend: {
-                    colors: {
-                        'primary-blue': '#3498eb',
-                    }
-                }
-            }
-        }
-    </script>
-    <!-- Font Awesome ikonok a téma váltóhoz -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZxgPHs44uWIX+LLMDJd4S1R2W3Sg35B3b4O2Q6H6O8+fQjEwL6Vv5W2C3f6d7n4F7zI7mP+s6R1w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        // Firestore logolás bekapcsolása (debugoláshoz)
-        setLogLevel('Debug');
-
-        // Globális változók definíciója
-        window.initializeApp = initializeApp;
-        window.getAuth = getAuth;
-        window.signInAnonymously = signInAnonymously;
-        window.signInWithCustomToken = signInWithCustomToken;
-        window.onAuthStateChanged = onAuthStateChanged;
-        window.getFirestore = getFirestore;
-        window.doc = doc;
-        window.getDoc = getDoc;
-        window.addDoc = addDoc;
-        window.setDoc = setDoc;
-        window.updateDoc = updateDoc;
-        window.deleteDoc = deleteDoc;
-        window.onSnapshot = onSnapshot;
-        window.collection = collection;
-        window.query = query;
-        window.where = where;
-        window.getDocs = getDocs;
-
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Általános átmenet alkalmazása az összes elemre a színek váltásánál */
-        * {
-            transition: background-color 0.5s, color 0.5s, border-color 0.5s;
-        }
-        /* Egyedi stílus a scrollbar-hoz (opcionális, de szebb sötét módban) */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1; /* light-mode */
-            border-radius: 4px;
-        }
-        .dark ::-webkit-scrollbar-thumb {
-            background: #4b5563; /* dark-mode */
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #f4f7f9; }
+        .card { background-color: white; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        .btn-primary { background-color: #3498eb; color: white; transition: background-color 0.2s; }
+        .btn-primary:hover { background-color: #2980b9; }
+        .modal-bg { backdrop-filter: blur(5px); }
+        /* Animáció a modálok megjelenéséhez */
+        .modal-content { animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     </style>
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
-
-    <!-- Fő Konténer -->
-    <div class="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
-
-        <!-- Fejléc és Téma Váltó -->
-        <header class="flex justify-between items-center mb-6">
-            <h1 class="text-3xl font-extrabold text-primary-blue dark:text-blue-400">Rezsi Nyilvántartó</h1>
-            <div class="flex items-center space-x-3">
-                <button id="theme-toggle" class="p-2 rounded-full text-white bg-primary-blue dark:bg-blue-600 hover:bg-blue-600 dark:hover:bg-blue-700 transition-colors shadow-md" aria-label="Téma váltása">
-                    <!-- Ikon dinamikusan változik a JS-ben -->
-                    <i class="fas" id="theme-icon"></i> 
-                </button>
-                <div id="user-info" class="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    <!-- Felhasználói ID ide kerül -->
-                </div>
+<body class="p-4 sm:p-6 lg:p-8 min-h-screen">
+    
+    <div id="app-container" class="max-w-4xl mx-auto space-y-8">
+        <header class="text-center py-4 card">
+            <h1 class="text-3xl font-extrabold text-gray-800">Rezsi Nyilvántartó <span class="text-sm text-blue-500 font-medium">PWA</span></h1>
+            <p class="text-sm text-gray-500 mt-1">Gyakori Víz, Gáz és Villany Költségek Kezelése</p>
+            <div id="user-info" class="text-xs mt-2 p-1 bg-blue-50 rounded-lg">
+                <p class="text-blue-700">Felhasználó azonosító (UID): <span id="user-id-display" class="font-mono text-gray-600">Betöltés...</span></p>
             </div>
         </header>
 
-        <!-- Firestore Inicializáció és Auth State -->
-        <div id="auth-status" class="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900 border border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200 rounded-lg hidden">
-            <p>Kapcsolódás a FireStore adatbázishoz...</p>
-        </div>
-
-        <!-- 1. Új Költség felvitele kártya -->
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg mb-8 transition-colors">
-            <h2 class="text-2xl font-semibold mb-4 text-primary-blue dark:text-blue-400">Új Költség Felvitele</h2>
-            <form id="new-cost-form">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <!-- Kategória -->
-                    <div>
-                        <label for="cost-category" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Kategória</label>
-                        <select id="cost-category" required class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-blue focus:ring focus:ring-primary-blue focus:ring-opacity-50 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 p-2">
-                            <!-- Kategóriák feltöltése JS-ből -->
-                        </select>
-                    </div>
-                    <!-- Összeg -->
-                    <div>
-                        <label for="cost-amount" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Összeg (Ft)</label>
-                        <input type="number" id="cost-amount" required min="1" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-blue focus:ring focus:ring-primary-blue focus:ring-opacity-50 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 p-2">
-                    </div>
-                    <!-- Dátum -->
-                    <div>
-                        <label for="cost-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Dátum</label>
-                        <input type="date" id="cost-date" required class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-blue focus:ring focus:ring-primary-blue focus:ring-opacity-50 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 p-2">
-                    </div>
-                    <!-- Megjegyzés (opcionális) -->
-                    <div>
-                        <label for="cost-note" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Megjegyzés (opc.)</label>
-                        <input type="text" id="cost-note" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-blue focus:ring focus:ring-primary-blue focus:ring-opacity-50 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 p-2">
-                    </div>
-                </div>
-                <button type="submit" class="w-full mt-6 px-4 py-2 bg-primary-blue text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-primary-blue focus:ring-opacity-75 transition-colors">
-                    Hozzáadás
-                </button>
-            </form>
-            <button onclick="showModal('manage-categories-modal')" class="w-full mt-3 text-sm text-primary-blue dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors">
-                Rendszeres Költségek Kezelése
+        <!-- Összegzés és Hozzáadás gombok -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div id="total-summary" class="card p-5 text-center">
+                <p class="text-sm font-medium text-gray-500">Összesített havi kiadás:</p>
+                <p id="monthly-total" class="text-3xl font-bold text-red-600 mt-1">0 Ft</p>
+            </div>
+            
+            <button onclick="showModal('new-entry-modal')" class="card p-5 btn-primary flex flex-col items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span class="mt-1 font-semibold">Új költség felvitele</span>
+            </button>
+            
+            <button onclick="showModal('manage-categories-modal')" class="card p-5 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-xl flex flex-col items-center justify-center transition duration-150 ease-in-out">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.536.213 1.082.348 1.636.348z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <span class="mt-1 font-semibold">Tételek kezelése</span>
             </button>
         </div>
 
-        <!-- 2. Összes Költség kártya -->
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg transition-colors">
-            <h2 class="text-2xl font-semibold mb-4 text-primary-blue dark:text-blue-400">Összes Költség</h2>
-            
-            <!-- Szűrés hónap szerint -->
-            <div class="mb-4">
-                <label for="month-filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Szűrés Hónap Szerint:</label>
-                <input type="month" id="month-filter" class="rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-blue focus:ring focus:ring-primary-blue focus:ring-opacity-50 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 p-2">
+        <!-- Bejegyzések listája -->
+        <div class="card p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Eddigi költségek</h2>
+            <div id="entries-list" class="space-y-3">
+                <!-- A költség bejegyzések ide kerülnek renderelésre -->
             </div>
-
-            <!-- Összefoglaló -->
-            <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-                <p class="text-lg font-bold text-gray-800 dark:text-gray-200">Összes Költség a Kiválasztott Hónapban:</p>
-                <p id="total-cost-display" class="text-2xl font-extrabold text-red-600 dark:text-red-400 mt-1">0 Ft</p>
-            </div>
-
-            <!-- Költség lista -->
-            <div id="costs-list" class="space-y-3 max-h-96 overflow-y-auto pr-2">
-                <!-- Költség tételek ide kerülnek renderelésre -->
-            </div>
-
-            <p id="no-costs-message" class="text-center text-gray-500 dark:text-gray-400 mt-4 hidden">Még nincs felvitt költség a kiválasztott hónapban.</p>
+            <p id="no-entries-message" class="text-center text-gray-500 mt-4 hidden">Még nincsenek felvitt költségek.</p>
         </div>
     </div>
+    
+    <!-- Modálok -->
 
-    <!-- Modálok ------------------------------------------------------------------------------------------------------->
-
-    <!-- 1. Költség Szerkesztő Modál -->
-    <div id="edit-cost-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50">
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-lg transition-colors">
-            <h2 class="text-2xl font-bold mb-4 text-primary-blue dark:text-blue-400">Költség Szerkesztése</h2>
-            <form id="edit-cost-form">
-                <input type="hidden" id="edit-cost-id">
-                <div class="space-y-4">
-                    <div>
-                        <label for="edit-category" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Kategória</label>
-                        <select id="edit-category" required class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-blue focus:ring focus:ring-primary-blue focus:ring-opacity-50 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 p-2">
-                            <!-- Kategóriák feltöltése JS-ből -->
-                        </select>
-                    </div>
-                    <div>
-                        <label for="edit-amount" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Összeg (Ft)</label>
-                        <input type="number" id="edit-amount" required min="1" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-blue focus:ring focus:ring-primary-blue focus:ring-opacity-50 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 p-2">
-                    </div>
-                    <div>
-                        <label for="edit-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Dátum</label>
-                        <input type="date" id="edit-date" required class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-blue focus:ring focus:ring-primary-blue focus:ring-opacity-50 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 p-2">
-                    </div>
-                    <div>
-                        <label for="edit-note" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Megjegyzés (opc.)</label>
-                        <input type="text" id="edit-note" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-blue focus:ring focus:ring-primary-blue focus:ring-opacity-50 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 p-2">
-                    </div>
+    <!-- 1. Új Költség Modál -->
+    <div id="new-entry-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50 modal-bg">
+        <div class="card p-6 w-full max-w-lg modal-content">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Új Költség Felvitele</h2>
+            <form id="new-entry-form" onsubmit="handleNewEntry(event)">
+                <div class="mb-4">
+                    <label for="entry-name" class="block text-sm font-medium text-gray-700 mb-1">Tétel neve (pl. "Februári villany")</label>
+                    <input type="text" id="entry-name" name="name" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
                 </div>
-                <div class="flex justify-end space-x-4 mt-6">
-                    <button type="button" onclick="hideAllModals()" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Mégse</button>
-                    <button type="submit" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition-colors">Mentés</button>
+                <div class="mb-4">
+                    <label for="entry-category" class="block text-sm font-medium text-gray-700 mb-1">Kategória</label>
+                    <select id="entry-category" name="categoryId" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">Válassz kategóriát</option>
+                        <!-- Kategóriák ide kerülnek dinamikusan -->
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label for="entry-amount" class="block text-sm font-medium text-gray-700 mb-1">Összeg (Ft)</label>
+                    <input type="number" id="entry-amount" name="amount" required min="1" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="mb-6">
+                    <label for="entry-date" class="block text-sm font-medium text-gray-700 mb-1">Dátum</label>
+                    <input type="date" id="entry-date" name="date" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="hideAllModals()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Mégsem</button>
+                    <button type="submit" class="px-4 py-2 btn-primary rounded-lg font-semibold">Mentés</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- 2. Hibaüzenet Modál -->
-    <div id="error-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50">
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-sm text-center transition-colors">
-            <h2 class="text-xl font-bold text-red-600 mb-4">Hiba!</h2>
-            <p id="error-modal-body" class="text-gray-700 dark:text-gray-300 mb-6"></p>
-            <button onclick="hideAllModals()" class="px-4 py-2 bg-primary-blue text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition-colors">Rendben</button>
+    <!-- 2. Új Kategória/Tétel Modál (ami rendszeresen ismétlődik) -->
+    <div id="new-category-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50 modal-bg">
+        <div class="card p-6 w-full max-w-lg modal-content">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4" id="category-modal-title">Új Ismétlődő Tétel Felvitele</h2>
+            <form id="new-category-form" onsubmit="handleCategorySave(event)">
+                <input type="hidden" id="category-id">
+                <div class="mb-4">
+                    <label for="category-name" class="block text-sm font-medium text-gray-700 mb-1">Tétel neve (pl. "Gázszámla")</label>
+                    <input type="text" id="category-name" name="name" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label for="category-type" class="block text-sm font-medium text-gray-700 mb-1">Típus</label>
+                    <select id="category-type" name="type" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                        <option value="Villany">Villany</option>
+                        <option value="Gáz">Gáz</option>
+                        <option value="Víz">Víz</option>
+                        <option value="Közös költség">Közös költség</option>
+                        <option value="Egyéb">Egyéb</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label for="category-amount" class="block text-sm font-medium text-gray-700 mb-1">Becsült havi összeg (Ft)</label>
+                    <input type="number" id="category-amount" name="amount" required min="0" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="mb-6">
+                    <label for="category-next-date" class="block text-sm font-medium text-gray-700 mb-1">Legközelebbi esedékesség dátuma</label>
+                    <input type="date" id="category-next-date" name="nextDate" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="hideAllModals()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Mégsem</button>
+                    <button type="submit" class="px-4 py-2 btn-primary rounded-lg font-semibold">Mentés</button>
+                </div>
+            </form>
         </div>
     </div>
 
-    <!-- 3. Rendszeres Költségek Kezelő Modál -->
-    <div id="manage-categories-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50">
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-lg transition-colors">
-            <h2 class="text-2xl font-bold mb-4 text-primary-blue dark:text-blue-400">Rendszeres Költségek Kezelése</h2>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Itt szerkesztheted/törölheted a rendszeresen ismétlődő tételeket.</p>
+    <!-- 3. Kategóriák Kezelése Modál -->
+    <div id="manage-categories-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50 modal-bg">
+        <div class="card p-6 w-full max-w-2xl modal-content">
+            <div class="flex justify-between items-start mb-4">
+                <h2 class="text-2xl font-bold text-gray-800">Ismétlődő tételek kezelése</h2>
+                <button onclick="openNewCategoryModal()" class="px-3 py-1 btn-primary text-sm rounded-lg flex items-center space-x-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                    <span>Új tétel</span>
+                </button>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">Itt szerkesztheted/törölheted a rendszeresen ismétlődő tételeket.</p>
             <div id="managed-categories-list" class="space-y-2 max-h-96 overflow-y-auto pr-2">
                 <!-- Kezelt kategória lista ide kerül renderelésre -->
             </div>
             <div class="flex justify-end mt-4">
-                <button type="button" onclick="hideAllModals()" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Bezárás</button>
+                <button type="button" onclick="hideAllModals()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Bezárás</button>
             </div>
         </div>
     </div>
 
     <!-- 4. Megerősítő Modál -->
-    <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50">
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-sm text-center transition-colors">
+    <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 z-50 modal-bg">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm text-center modal-content">
             <h2 id="confirm-modal-title" class="text-xl font-bold text-red-600 mb-4"></h2>
-            <p id="confirm-modal-body" class="text-gray-700 dark:text-gray-300 mb-6"></p>
+            <p id="confirm-modal-body" class="text-gray-700 mb-6"></p>
             <div class="flex justify-center space-x-4">
-                <button id="cancel-delete-btn" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Mégse</button>
-                <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition-colors">Törlés</button>
+                <button id="cancel-delete-btn" onclick="hideAllModals()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Mégsem</button>
+                <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition duration-150">Törlés megerősítése</button>
             </div>
         </div>
     </div>
 
+    <!-- 5. Toast Üzenet (Egy gyors felugró üzenet) -->
+    <div id="toast" class="fixed bottom-5 left-1/2 transform -translate-x-1/2 p-3 bg-green-500 text-white rounded-lg shadow-xl opacity-0 transition-opacity duration-300 z-[60]" style="min-width: 250px;">
+        Üzenet sikeresen elküldve.
+    </div>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, collection, query, addDoc, updateDoc, deleteDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    <script>
-        // Alapértelmezett kategóriák
-        const defaultCategories = ['Áram', 'Gáz', 'Víz', 'Közös Költség', 'Internet', 'Telefon', 'Egyéb'];
-        
+        // Global Firebase and App State variables
         let db;
         let auth;
-        let userId;
-        let categories = []; // Aktuális kategóriák
-        let recurringCostsUnsubscribe;
-        let monthlyCostsUnsubscribe;
+        let userId = null;
+        let appId = 'default-app-id';
+        let isAuthReady = false;
+        
+        let categories = []; // Tételtípusok (kategóriák) tárolása
+        let entries = [];    // Költség bejegyzések tárolása
 
-        // --- Kezdeti Firebase és Auth logika ---
+        // Segédfüggvény a dátum formázásához
+        const formatDate = (timestamp) => {
+            if (!timestamp) return 'N/A';
+            const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+            return date.toLocaleDateString('hu-HU', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        };
+        
+        // --- FIREBASE INITIALIZATION AND AUTHENTICATION (Kritikus hiba javítása) ---
+        
+        async function setupFirebase() {
+            console.log("Firebase inicializálás megkezdése...");
 
-        async function initializeFirebaseAndAuth() {
+            // 1. Globális változók beolvasása
+            if (typeof __app_id !== 'undefined') {
+                appId = __app_id;
+            }
+            let firebaseConfig;
             try {
-                // Globális változók ellenőrzése és beállítása
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-                if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
-                    throw new Error("A Firebase konfiguráció hiányzik.");
+                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                    firebaseConfig = JSON.parse(__firebase_config);
                 }
+            } catch (e) {
+                console.error("Hiba történt a Firebase konfiguráció JSON feldolgozása során:", e);
+            }
 
+            if (!firebaseConfig) {
+                // Kritikus hiba kezelése a felhasználói felületen
+                const appContainer = document.getElementById('app-container');
+                appContainer.innerHTML = '<div class="text-center p-8 bg-red-100 border border-red-400 text-red-700 rounded-xl max-w-lg mx-auto mt-10 shadow-lg"><h2>Kritikus hiba:</h2><p class="mt-2">A Firebase konfiguráció hiányzik. Az alkalmazás nem tud elindulni.</p><p class="mt-4 text-sm text-gray-500">Kérjük, győződjön meg arról, hogy a környezet megfelelően be van állítva.</p></div>';
+                console.error("Kritikus hiba: A Firebase konfiguráció hiányzik. Az alkalmazás nem tud elindulni.");
+                return; // Megállítja az alkalmazás indítását
+            }
+
+            // 2. Firebase App inicializálása
+            try {
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
+                setLogLevel('debug');
+                console.log("Firebase inicializálva és szolgáltatások beállítva.");
 
-                // Autentikáció
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
+                // 3. Hitelesítés
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                    console.log("Hitelesítés egyedi tokenen keresztül sikeres.");
                 } else {
                     await signInAnonymously(auth);
+                    console.log("Anonim hitelesítés sikeres.");
                 }
 
-                // Auth állapot figyelése
+                // 4. Hitelesítési állapot figyelése és az adatbetöltés engedélyezése
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         userId = user.uid;
-                        document.getElementById('auth-status').classList.add('hidden');
-                        document.getElementById('user-info').textContent = `Felhasználó ID: ${userId}`;
-                        console.log("Sikeres bejelentkezés. User ID:", userId);
-
-                        // Inicializálja az alkalmazást az adatokkal
-                        initAppWithData();
+                        console.log(`Felhasználó azonosító (UID): ${userId}`);
+                        isAuthReady = true;
+                        // Itt indítjuk el az adatbetöltést, miután a hitelesítés befejeződött
+                        initRealtimeListeners();
+                        // Felhasználói azonosító megjelenítése a UI-on
+                        document.getElementById('user-id-display').textContent = userId;
                     } else {
-                        // Nem autentikált, hiba vagy anonim bejelentkezés
-                        console.error("Autentikációs hiba történt.");
-                        document.getElementById('auth-status').textContent = 'Hiba az autentikáció során.';
-                        document.getElementById('auth-status').classList.remove('hidden');
+                        userId = null;
+                        isAuthReady = false;
+                        console.error("A hitelesítés sikertelen. Az adatok betöltése elhalasztva.");
+                        document.getElementById('user-id-display').textContent = 'Nincs bejelentkezve';
                     }
                 });
 
             } catch (error) {
-                console.error("Hiba a Firebase inicializálás vagy autentikáció során:", error);
-                document.getElementById('auth-status').textContent = `Kritikus hiba: ${error.message}`;
-                document.getElementById('auth-status').classList.remove('hidden');
-                showErrorModal(`Kritikus hiba: ${error.message}`);
+                console.error("Hiba történt a Firebase beállítása/hitelesítése során:", error);
+                // Hiba megjelenítése a felhasználói felületen
+                const appContainer = document.getElementById('app-container');
+                appContainer.innerHTML = `<div class="text-center p-8 bg-red-100 border border-red-400 text-red-700 rounded-xl max-w-lg mx-auto mt-10 shadow-lg"><h2>Hiba:</h2><p class="mt-2">Nem sikerült beállítani a Firebase-t: ${error.message}</p></div>`;
             }
         }
 
-        function initAppWithData() {
-            // Beállítja az alap kategóriákat, ha még nincsenek.
-            // A kategóriák a recurring costs collection-ben vannak tárolva
-            loadRecurringCosts();
+        // --- FIRESTORE HELPER FUNCTIONS ---
 
-            // Beállítja a havi költség nézetet a mai dátumra
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const defaultMonth = `${year}-${month}`;
-            document.getElementById('month-filter').value = defaultMonth;
-            
-            // Indítja a költségek valós idejű figyelését
-            loadMonthlyCosts(defaultMonth);
-        }
+        // Firestore elérési utak: Privát adatok (/artifacts/{appId}/users/{userId}/{collectionName})
+        const getCategoriesCollectionRef = () => collection(db, `artifacts/${appId}/users/${userId}/categories`);
+        const getEntriesCollectionRef = () => collection(db, `artifacts/${appId}/users/${userId}/entries`);
 
-        // --- Theme Toggle Logika (ÚJ RÉSZ) ---
+        // --- REALTIME LISTENERS ---
 
-        const htmlElement = document.documentElement;
-        const themeToggle = document.getElementById('theme-toggle');
-        const themeIcon = document.getElementById('theme-icon');
-
-        function applyTheme(theme) {
-            const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-            
-            if (theme === 'dark') {
-                htmlElement.classList.add('dark');
-                if (themeIcon) {
-                    themeIcon.classList.remove('fa-sun');
-                    themeIcon.classList.add('fa-moon');
-                }
-                // Téma szín frissítése (pl. sötétkék a sötét témához)
-                if (themeColorMeta) {
-                    themeColorMeta.setAttribute('content', '#1f2937'); 
-                }
-            } else {
-                htmlElement.classList.remove('dark');
-                if (themeIcon) {
-                    themeIcon.classList.remove('fa-moon');
-                    themeIcon.classList.add('fa-sun');
-                }
-                // Téma szín frissítése (pl. világoskék a világos témához)
-                if (themeColorMeta) {
-                    themeColorMeta.setAttribute('content', '#3498eb');
-                }
-            }
-            localStorage.setItem('theme', theme);
-        }
-
-        function toggleTheme() {
-            const currentTheme = htmlElement.classList.contains('dark') ? 'dark' : 'light';
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-            applyTheme(newTheme);
-        }
-
-        // Téma betöltése oldalbetöltéskor
-        document.addEventListener('DOMContentLoaded', () => {
-            const storedTheme = localStorage.getItem('theme');
-            if (storedTheme) {
-                applyTheme(storedTheme);
-            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                // Rendszer beállítás követése
-                applyTheme('dark');
-            } else {
-                applyTheme('light'); // Alapértelmezett: világos
-            }
-
-            // Eseménykezelő hozzáadása a gombhoz
-            if (themeToggle) {
-                themeToggle.addEventListener('click', toggleTheme);
-            }
-            
-            // Init Firebase and Data
-            initializeFirebaseAndAuth();
-        });
-
-
-        // --- Firestore Műveletek ---
-
-        function getCollectionPath(collectionName, isPublic = false) {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            if (isPublic) {
-                // Public data (ha lenne megosztott funkció)
-                return `artifacts/${appId}/public/data/${collectionName}`;
-            }
-            // Private data (minden, ami most van)
-            if (!userId) {
-                console.error("User ID is not set. Cannot determine collection path.");
-                return null;
-            }
-            return `artifacts/${appId}/users/${userId}/${collectionName}`;
-        }
-
-        /**
-         * Rendszeresen ismétlődő tételek (kategóriák) betöltése/figyelése.
-         * A kategóriák a "recurring_costs" gyűjteményben vannak tárolva.
-         */
-        function loadRecurringCosts() {
-            if (!db || !userId) return;
-            const path = getCollectionPath('recurring_costs');
-            if (!path) return;
-
-            if (recurringCostsUnsubscribe) {
-                recurringCostsUnsubscribe();
-            }
-
-            recurringCostsUnsubscribe = onSnapshot(collection(db, path), (snapshot) => {
-                categories = [];
-                const managedCategoriesList = document.getElementById('managed-categories-list');
-                managedCategoriesList.innerHTML = '';
-                
-                // Kategóriák listájának összeállítása (a megjelenítendő és a select-boxba kerülő)
-                const categoryDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-                // Alap kategóriák hozzáadása, ha még nincsenek az adatbázisban
-                const existingNames = categoryDocs.map(c => c.name);
-                defaultCategories.forEach(defaultName => {
-                    if (!existingNames.includes(defaultName)) {
-                        // Csak a memóriában lévő listához adja hozzá, ha még nincs meg (ez nem kerül mentésre, csak a select box-ban jelenik meg, ha nincs beállított ár)
-                        categories.push({ name: defaultName, amount: 0, isDefault: true });
-                    }
-                });
-
-                // Adatbázisban tárolt kategóriák hozzáadása (ezeknek van beállított ára)
-                categoryDocs.forEach(cost => {
-                    categories.push({ 
-                        id: cost.id, 
-                        name: cost.name, 
-                        amount: cost.amount, 
-                        isDefault: defaultCategories.includes(cost.name) 
-                    });
-
-                    // Modál listájának feltöltése (csak a nem alapértelmezett vagy beállított értékű elemek)
-                    renderManagedCategory(cost);
-                });
-
-                // Rendezés név szerint
-                categories.sort((a, b) => a.name.localeCompare(b.name));
-
-                // Select-boxok frissítése
-                updateCategorySelects();
-            }, (error) => {
-                console.error("Hiba a rendszeres költségek figyelése közben:", error);
-            });
-        }
-        
-        // Költség hozzáadása
-        document.getElementById('new-cost-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!db || !userId) return;
-
-            const categoryName = document.getElementById('cost-category').value;
-            const amount = parseInt(document.getElementById('cost-amount').value);
-            const dateStr = document.getElementById('cost-date').value;
-            const note = document.getElementById('cost-note').value.trim();
-
-            if (isNaN(amount) || amount <= 0 || !categoryName || !dateStr) {
-                showErrorModal("Kérlek adj meg érvényes kategóriát, összeget és dátumot.");
+        // Ezt a függvényt hívjuk meg az onAuthStateChanged-ből, miután a userId rendelkezésre áll
+        function initRealtimeListeners() {
+            if (!isAuthReady || !userId) {
+                console.warn("Az adatbetöltés elhalasztva: A hitelesítés még nem fejeződött be.");
                 return;
             }
+            
+            listenToCategories();
+            listenToEntries(); 
+        }
 
-            try {
-                const collectionRef = collection(db, getCollectionPath('monthly_costs'));
-                await addDoc(collectionRef, {
-                    category: categoryName,
-                    amount: amount,
-                    date: dateStr, // Tárolás ISO formátumban (YYYY-MM-DD)
-                    note: note,
-                    createdAt: new Date().toISOString()
-                });
+        function listenToCategories() {
+            if (!isAuthReady || !userId) return;
+            const q = getCategoriesCollectionRef();
 
-                document.getElementById('new-cost-form').reset();
-            } catch (error) {
-                console.error("Hiba a költség hozzáadása során:", error);
-                showErrorModal("Nem sikerült elmenteni a költséget. Próbáld újra.");
-            }
-        });
-
-        // Költségek betöltése a kiválasztott hónapra
-        document.getElementById('month-filter').addEventListener('change', (e) => {
-            loadMonthlyCosts(e.target.value);
-        });
-
-        function loadMonthlyCosts(monthYear) {
-            if (!db || !userId || !monthYear) return;
-            const path = getCollectionPath('monthly_costs');
-            if (!path) return;
-
-            if (monthlyCostsUnsubscribe) {
-                monthlyCostsUnsubscribe();
-            }
-
-            const [year, month] = monthYear.split('-');
-            const startDate = `${year}-${month}-01`;
-            const nextMonth = parseInt(month) === 12 ? '01' : String(parseInt(month) + 1).padStart(2, '0');
-            const nextYear = parseInt(month) === 12 ? parseInt(year) + 1 : year;
-            const endDate = `${nextYear}-${nextMonth}-01`;
-
-            const q = query(
-                collection(db, path),
-                where('date', '>=', startDate),
-                where('date', '<', endDate)
-            );
-
-            monthlyCostsUnsubscribe = onSnapshot(q, (snapshot) => {
-                let totalCost = 0;
-                const costsList = document.getElementById('costs-list');
-                costsList.innerHTML = '';
-                
-                const costsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-                if (costsData.length === 0) {
-                    document.getElementById('no-costs-message').classList.remove('hidden');
-                    document.getElementById('total-cost-display').textContent = '0 Ft';
-                    return;
-                }
-                document.getElementById('no-costs-message').classList.add('hidden');
-
-                // Költségek rendezése dátum szerint (a legújabb elöl)
-                costsData.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-                costsData.forEach(cost => {
-                    totalCost += cost.amount;
-                    renderCostItem(cost, costsList);
-                });
-
-                document.getElementById('total-cost-display').textContent = `${totalCost.toLocaleString('hu-HU')} Ft`;
-
+            onSnapshot(q, (snapshot) => {
+                categories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log("Kategóriák frissítve:", categories.length);
+                renderCategoryOptions();
+                renderManagedCategories();
             }, (error) => {
-                console.error("Hiba a havi költségek figyelése közben:", error);
+                console.error("Hiba a kategóriák lekérdezésekor:", error);
+                showToast(`Hiba a kategóriák betöltésekor: ${error.message}`, 'bg-red-500');
             });
         }
 
-
-        // --- UI Frissítések és Renderelés ---
-
-        function updateCategorySelects() {
-            const selects = [
-                document.getElementById('cost-category'),
-                document.getElementById('edit-category')
-            ];
-
-            selects.forEach(select => {
-                if (!select) return;
-                const currentValue = select.value;
-                select.innerHTML = '<option value="" disabled selected>Válassz kategóriát</option>';
-                
-                categories.forEach(cat => {
-                    const option = document.createElement('option');
-                    option.value = cat.name;
-                    // Megmutatja az összeget is, ha be van állítva
-                    option.textContent = cat.amount > 0 
-                        ? `${cat.name} (${cat.amount.toLocaleString('hu-HU')} Ft - Rendszeres)`
-                        : cat.name; 
-                    select.appendChild(option);
+        function listenToEntries() {
+            if (!isAuthReady || !userId) return;
+            const q = getEntriesCollectionRef(); 
+            
+            // Itt nincs orderBy, a listában in-memory soroljuk
+            onSnapshot(q, (snapshot) => {
+                entries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log("Bejegyzések frissítve:", entries.length);
+                // Dátum szerint csökkenő sorrend (legfrissebb elől)
+                entries.sort((a, b) => {
+                    // Az 'date' mező lehet string vagy Timestamp
+                    const dateA = a.date.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
+                    const dateB = b.date.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
+                    return dateB - dateA; // Csökkenő sorrend
                 });
-
-                // Visszaállítja az előzőleg kiválasztott értéket
-                if (currentValue && categories.some(cat => cat.name === currentValue)) {
-                    select.value = currentValue;
-                } else if (select.options.length > 1) {
-                    select.value = ""; // Vagy beállítja az elsőt, ha nincs kiválasztott
-                }
+                renderEntriesList();
+                calculateTotalMonthlyCost();
+            }, (error) => {
+                console.error("Hiba a bejegyzések lekérdezésekor:", error);
+                showToast(`Hiba a költségek betöltésekor: ${error.message}`, 'bg-red-500');
             });
         }
 
-        function renderCostItem(cost, container) {
-            const dateObj = new Date(cost.date);
-            const formattedDate = dateObj.toLocaleDateString('hu-HU', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        // --- RENDER FUNCTIONS ---
 
-            const div = document.createElement('div');
-            div.className = "flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow cursor-pointer";
-            div.innerHTML = `
-                <div class="flex-1 min-w-0" onclick="showEditModal('${cost.id}', '${cost.category}', ${cost.amount}, '${cost.date}', '${cost.note}')">
-                    <p class="text-lg font-medium text-primary-blue dark:text-blue-400 truncate">${cost.category}</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Dátum: ${formattedDate}${cost.note ? ` | Megj.: ${cost.note}` : ''}</p>
-                </div>
-                <div class="flex items-center space-x-3">
-                    <p class="text-lg font-semibold text-red-600 dark:text-red-400 whitespace-nowrap">${cost.amount.toLocaleString('hu-HU')} Ft</p>
-                    <button onclick="confirmDeleteCost('${cost.id}')" class="text-red-500 hover:text-red-700 dark:hover:text-red-300 p-1 transition-colors" aria-label="Költség törlése">
-                        <i class="fas fa-trash-alt"></i>
-                    </button>
-                </div>
-            `;
-            container.appendChild(div);
+        function renderCategoryOptions() {
+            const select = document.getElementById('entry-category');
+            select.innerHTML = '<option value="">Válassz kategóriát</option>';
+            categories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat.id;
+                option.textContent = `${cat.name} (${cat.type}) - ${cat.amount.toLocaleString('hu-HU')} Ft`;
+                select.appendChild(option);
+            });
         }
 
-        function renderManagedCategory(cost) {
+        function renderManagedCategories() {
             const list = document.getElementById('managed-categories-list');
-            const div = document.createElement('div');
-            div.className = "flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600";
-            
-            div.innerHTML = `
-                <div class="flex-1 min-w-0">
-                    <p class="text-md font-medium text-gray-800 dark:text-gray-200 truncate">${cost.name}</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">${cost.amount.toLocaleString('hu-HU')} Ft / hó (Előre kitöltés)</p>
-                </div>
-                <div class="flex space-x-2">
-                    <button onclick="showEditRecurringCostModal('${cost.id}', '${cost.name}', ${cost.amount})" class="text-primary-blue hover:text-blue-600 dark:hover:text-blue-300 p-1" aria-label="Szerkesztés">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button onclick="confirmDeleteRecurringCost('${cost.id}', '${cost.name}')" class="text-red-500 hover:text-red-700 dark:hover:text-red-300 p-1" aria-label="Törlés">
-                        <i class="fas fa-times-circle"></i>
-                    </button>
-                </div>
-            `;
-            list.appendChild(div);
-        }
+            list.innerHTML = '';
 
-        // --- Modál Kezelés és Műveletek ---
-
-        function showModal(id) {
-            document.getElementById(id).classList.remove('hidden');
-        }
-
-        function hideAllModals() {
-            document.getElementById('edit-cost-modal').classList.add('hidden');
-            document.getElementById('error-modal').classList.add('hidden');
-            document.getElementById('confirmation-modal').classList.add('hidden');
-            document.getElementById('manage-categories-modal').classList.add('hidden');
-        }
-
-        function showErrorModal(message) {
-            document.getElementById('error-modal-body').textContent = message;
-            showModal('error-modal');
-        }
-
-        function showEditModal(id, category, amount, date, note) {
-            document.getElementById('edit-cost-id').value = id;
-            document.getElementById('edit-category').value = category;
-            document.getElementById('edit-amount').value = amount;
-            document.getElementById('edit-date').value = date;
-            document.getElementById('edit-note').value = note;
-            
-            // Frissíti a select boxot is
-            updateCategorySelects();
-
-            showModal('edit-cost-modal');
-        }
-
-        document.getElementById('edit-cost-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!db || !userId) return;
-
-            const id = document.getElementById('edit-cost-id').value;
-            const category = document.getElementById('edit-category').value;
-            const amount = parseInt(document.getElementById('edit-amount').value);
-            const dateStr = document.getElementById('edit-date').value;
-            const note = document.getElementById('edit-note').value.trim();
-
-            if (isNaN(amount) || amount <= 0 || !category || !dateStr) {
-                showErrorModal("Kérlek adj meg érvényes kategóriát, összeget és dátumot.");
+            if (categories.length === 0) {
+                list.innerHTML = '<p class="text-center text-gray-500 p-4">Nincsenek felvitt ismétlődő tételek.</p>';
                 return;
             }
 
-            try {
-                const docRef = doc(db, getCollectionPath('monthly_costs'), id);
-                await updateDoc(docRef, {
-                    category: category,
-                    amount: amount,
-                    date: dateStr,
-                    note: note
-                });
-                hideAllModals();
-            } catch (error) {
-                console.error("Hiba a költség szerkesztése során:", error);
-                showErrorModal("Nem sikerült elmenteni a szerkesztett költséget.");
-            }
-        });
-
-        function confirmDeleteCost(id) {
-            document.getElementById('confirm-modal-title').textContent = 'Költség Törlése';
-            document.getElementById('confirm-modal-body').textContent = 'Biztosan törölni szeretnéd ezt az egyszeri költséget? Ez a művelet nem vonható vissza.';
-            
-            const confirmBtn = document.getElementById('confirm-delete-btn');
-            confirmBtn.onclick = () => deleteCost(id);
-            confirmBtn.textContent = 'Törlés';
-            confirmBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
-            confirmBtn.classList.add('bg-red-600', 'hover:bg-red-700');
-
-            document.getElementById('cancel-delete-btn').onclick = hideAllModals;
-            showModal('confirmation-modal');
+            categories.forEach(cat => {
+                const item = document.createElement('div');
+                item.className = 'card p-3 flex justify-between items-center transition duration-150 hover:bg-blue-50';
+                item.innerHTML = `
+                    <div class="flex-grow">
+                        <p class="font-semibold text-gray-800">${cat.name} <span class="text-xs text-blue-600 ml-2">(${cat.type})</span></p>
+                        <p class="text-sm text-gray-600">${cat.amount.toLocaleString('hu-HU')} Ft | Következő: ${formatDate(cat.nextDate)}</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button onclick="editCategory('${cat.id}')" class="text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-100">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-3.04 1.015L3.25 10.75V14h3.25l7.015-7.015-2.828-2.828z" /></svg>
+                        </button>
+                        <button onclick="confirmDeleteCategory('${cat.id}', '${cat.name}')" class="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                        </button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
         }
 
-        async function deleteCost(id) {
-            if (!db || !userId) return;
-            try {
-                const docRef = doc(db, getCollectionPath('monthly_costs'), id);
-                await deleteDoc(docRef);
-                hideAllModals();
-            } catch (error) {
-                console.error("Hiba a költség törlése során:", error);
-                showErrorModal("Nem sikerült törölni a költséget.");
+        function renderEntriesList() {
+            const list = document.getElementById('entries-list');
+            const noEntriesMessage = document.getElementById('no-entries-message');
+            list.innerHTML = '';
+
+            if (entries.length === 0) {
+                noEntriesMessage.classList.remove('hidden');
+                return;
             }
+            noEntriesMessage.classList.add('hidden');
+
+            entries.forEach(entry => {
+                const category = categories.find(c => c.id === entry.categoryId);
+                const categoryName = category ? category.name : 'Ismeretlen kategória';
+                const typeColor = category ? {
+                    'Villany': 'bg-yellow-100 text-yellow-800', 
+                    'Gáz': 'bg-red-100 text-red-800', 
+                    'Víz': 'bg-blue-100 text-blue-800',
+                    'Közös költség': 'bg-green-100 text-green-800',
+                    'Egyéb': 'bg-gray-100 text-gray-800',
+                }[category.type] : 'bg-gray-100 text-gray-800';
+
+                const item = document.createElement('div');
+                item.className = 'card p-4 flex justify-between items-center border-l-4 border-blue-500 transition duration-150 hover:shadow-md';
+                item.innerHTML = `
+                    <div class="flex-grow min-w-0">
+                        <div class="flex items-center space-x-3">
+                            <span class="px-2 py-0.5 text-xs font-semibold rounded-full ${typeColor}">${category?.type || 'Egyéb'}</span>
+                            <p class="font-bold text-gray-800 truncate">${entry.name}</p>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-1">Kategória: ${categoryName}</p>
+                    </div>
+                    <div class="text-right ml-4 flex-shrink-0">
+                        <p class="text-xl font-extrabold text-red-600">${entry.amount.toLocaleString('hu-HU')} Ft</p>
+                        <p class="text-xs text-gray-500 mt-1">${formatDate(entry.date)}</p>
+                    </div>
+                    <button onclick="confirmDeleteEntry('${entry.id}', '${entry.name}')" class="ml-4 text-red-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition duration-150">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                    </button>
+                `;
+                list.appendChild(item);
+            });
         }
         
-        // Rendszeres Költség Szerkesztése (a kategória árának beállítása/módosítása)
-        function showEditRecurringCostModal(id, name, amount) {
-            // A megerősítő modált használjuk a szerkesztéshez
-            document.getElementById('confirm-modal-title').textContent = `Rendszeres Költség (${name})`;
-            document.getElementById('confirm-modal-body').innerHTML = `
-                <p class="mb-3 text-left">Adj meg egy új havi összeget az automatikus kitöltéshez:</p>
-                <input type="number" id="recurring-amount-input" value="${amount}" min="0" 
-                       class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-blue focus:ring focus:ring-primary-blue focus:ring-opacity-50 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 p-2" required>
-            `;
-            
-            const confirmBtn = document.getElementById('confirm-delete-btn');
-            confirmBtn.onclick = () => saveRecurringCost(id, name);
-            confirmBtn.textContent = 'Mentés';
-            confirmBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
-            confirmBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+        // --- CALCULATION ---
 
-            document.getElementById('cancel-delete-btn').onclick = hideAllModals;
-            showModal('confirmation-modal');
+        function calculateTotalMonthlyCost() {
+            // A havi összesített költség becslése az ismétlődő tételek alapján
+            const total = categories.reduce((sum, cat) => sum + (cat.amount || 0), 0);
+            document.getElementById('monthly-total').textContent = `${total.toLocaleString('hu-HU')} Ft`;
         }
 
-        async function saveRecurringCost(id, name) {
-            if (!db || !userId) return;
-            
-            const amountInput = document.getElementById('recurring-amount-input');
-            const amount = parseInt(amountInput.value);
+        // --- MODAL & UI FUNCTIONS ---
 
-            if (isNaN(amount) || amount < 0) {
-                showErrorModal("Kérlek adj meg érvényes összeget.");
+        window.showModal = (id) => {
+            document.getElementById(id).classList.remove('hidden');
+        };
+
+        window.hideAllModals = () => {
+            ['new-entry-modal', 'new-category-modal', 'manage-categories-modal', 'confirmation-modal'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            // Űrlap visszaállítása szerkesztés után
+            document.getElementById('new-category-form').reset();
+            document.getElementById('category-id').value = '';
+            document.getElementById('category-modal-title').textContent = 'Új Ismétlődő Tétel Felvitele';
+        };
+
+        window.openNewCategoryModal = () => {
+            hideAllModals();
+            showModal('new-category-modal');
+        }
+
+        window.showToast = (message, colorClass = 'bg-green-500') => {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `fixed bottom-5 left-1/2 transform -translate-x-1/2 p-3 text-white rounded-lg shadow-xl opacity-0 transition-opacity duration-300 z-[60] ${colorClass}`;
+            
+            // Megjelenítés
+            setTimeout(() => {
+                toast.classList.remove('opacity-0');
+            }, 50);
+
+            // Eltüntetés
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+            }, 3000);
+        }
+
+        // --- FIREBASE DATA OPERATIONS (CRUD) ---
+        
+        // --- KATEGÓRIÁK KEZELÉSE (CRUD) ---
+
+        window.handleCategorySave = async (event) => {
+            event.preventDefault();
+            if (!isAuthReady || !userId) {
+                showToast("Hiba: Nincs hitelesített felhasználó a mentéshez.", 'bg-red-500');
+                return;
+            }
+
+            const form = event.target;
+            const id = form.elements['category-id'].value;
+            const name = form.elements['category-name'].value;
+            const type = form.elements['category-type'].value;
+            const amount = parseInt(form.elements['category-amount'].value, 10);
+            const nextDate = form.elements['category-next-date'].value;
+
+            const categoryData = {
+                name,
+                type,
+                amount,
+                nextDate, // A dátumot stringként mentjük el
+                createdAt: id ? category.createdAt : new Date()
+            };
+
+            try {
+                if (id) {
+                    // Szerkesztés
+                    await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/categories`, id), categoryData);
+                    showToast('Tétel sikeresen frissítve!');
+                } else {
+                    // Új hozzáadása
+                    await addDoc(getCategoriesCollectionRef(), categoryData);
+                    showToast('Új tétel sikeresen felvíve!');
+                }
+                hideAllModals();
+            } catch (error) {
+                console.error("Hiba a tétel mentésekor:", error);
+                showToast(`Hiba a mentés során: ${error.message}`, 'bg-red-500');
+            }
+        };
+
+        window.editCategory = (id) => {
+            const category = categories.find(c => c.id === id);
+            if (!category) return;
+            
+            document.getElementById('category-modal-title').textContent = 'Tétel szerkesztése';
+            document.getElementById('category-id').value = category.id;
+            document.getElementById('category-name').value = category.name;
+            document.getElementById('category-type').value = category.type;
+            document.getElementById('category-amount').value = category.amount;
+            document.getElementById('category-next-date').value = category.nextDate; // A string dátum jó
+            
+            // Modál váltása
+            hideAllModals(); 
+            showModal('new-category-modal');
+        };
+
+        window.confirmDeleteCategory = (id, name) => {
+            hideAllModals();
+            document.getElementById('confirm-modal-title').textContent = 'Tétel törlése';
+            document.getElementById('confirm-modal-body').innerHTML = `Biztosan törölni szeretnéd a(z) <strong>${name}</strong> tételt az ismétlődő tételek közül? Ez nem érinti az eddig felvitt költségeket.`;
+            
+            const confirmBtn = document.getElementById('confirm-delete-btn');
+            confirmBtn.onclick = () => deleteCategory(id);
+            confirmBtn.textContent = 'Törlés';
+            confirmBtn.classList.replace('bg-green-600', 'bg-red-600');
+            
+            showModal('confirmation-modal');
+        };
+
+        async function deleteCategory(id) {
+            if (!isAuthReady || !userId) {
+                showToast("Hiba: Nincs hitelesített felhasználó a törléshez.", 'bg-red-500');
                 return;
             }
 
             try {
-                const docRef = doc(db, getCollectionPath('recurring_costs'), id);
-                // Csak az összeget frissítjük
-                await setDoc(docRef, { name: name, amount: amount }, { merge: true });
-                hideAllModals();
+                await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/categories`, id));
+                showToast('Tétel sikeresen törölve!');
             } catch (error) {
-                console.error("Hiba a rendszeres költség mentése során:", error);
-                showErrorModal("Nem sikerült elmenteni a rendszeres költséget.");
+                console.error("Hiba a tétel törlésekor:", error);
+                showToast(`Hiba a törlés során: ${error.message}`, 'bg-red-500');
+            } finally {
+                hideAllModals();
             }
         }
 
-        function confirmDeleteRecurringCost(id, name) {
-            document.getElementById('confirm-modal-title').textContent = `Tétel Törlése: ${name}`;
-            document.getElementById('confirm-modal-body').textContent = 'Biztosan törölni szeretnéd ezt a tételt a rendszeres költségek közül? Ezzel csak az előre kitöltött összeget törlöd, a régi havi költségek megmaradnak.';
+        // --- KÖLTSÉGEK KEZELÉSE (CRUD) ---
+
+        window.handleNewEntry = async (event) => {
+            event.preventDefault();
+            if (!isAuthReady || !userId) {
+                showToast("Hiba: Nincs hitelesített felhasználó a mentéshez.", 'bg-red-500');
+                return;
+            }
+
+            const form = event.target;
+            const name = form.elements['entry-name'].value;
+            const categoryId = form.elements['entry-category'].value;
+            const amount = parseInt(form.elements['entry-amount'].value, 10);
+            const date = form.elements['entry-date'].value;
+
+            const entryData = {
+                name,
+                categoryId,
+                amount,
+                date,
+                timestamp: new Date(), // A felvitel időpontja
+            };
+
+            try {
+                await addDoc(getEntriesCollectionRef(), entryData);
+                showToast('Költség sikeresen felvíve!');
+                form.reset();
+                hideAllModals();
+            } catch (error) {
+                console.error("Hiba a költség felvitelekor:", error);
+                showToast(`Hiba a költség mentése során: ${error.message}`, 'bg-red-500');
+            }
+        };
+
+        window.confirmDeleteEntry = (id, name) => {
+            hideAllModals();
+            document.getElementById('confirm-modal-title').textContent = 'Költség Törlése';
+            document.getElementById('confirm-modal-body').innerHTML = `Biztosan törölni szeretnéd a(z) <strong>${name}</strong> költség bejegyzést?`;
             
             const confirmBtn = document.getElementById('confirm-delete-btn');
-            confirmBtn.onclick = () => deleteRecurringCost(id);
+            confirmBtn.onclick = () => deleteEntry(id);
             confirmBtn.textContent = 'Törlés';
-            confirmBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
-            confirmBtn.classList.add('bg-red-600', 'hover:bg-red-700');
+            confirmBtn.classList.replace('bg-green-600', 'bg-red-600');
 
-            document.getElementById('cancel-delete-btn').onclick = hideAllModals;
             showModal('confirmation-modal');
-        }
+        };
 
-        async function deleteRecurringCost(id) {
-            if (!db || !userId) return;
+        async function deleteEntry(id) {
+            if (!isAuthReady || !userId) {
+                showToast("Hiba: Nincs hitelesített felhasználó a törléshez.", 'bg-red-500');
+                return;
+            }
+
             try {
-                const docRef = doc(db, getCollectionPath('recurring_costs'), id);
-                await deleteDoc(docRef);
-                hideAllModals();
+                await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/entries`, id));
+                showToast('Költség sikeresen törölve!', 'bg-red-500');
             } catch (error) {
-                console.error("Hiba a rendszeres költség törlése során:", error);
-                showErrorModal("Nem sikerült törölni a tételt.");
+                console.error("Hiba a költség törlésekor:", error);
+                showToast(`Hiba a törlés során: ${error.message}`, 'bg-red-500');
+            } finally {
+                hideAllModals();
             }
         }
 
+        // --- APP STARTUP ---
+        
+        // Az alkalmazás indítása, amikor az oldal teljesen betöltődött
+        window.onload = setupFirebase;
     </script>
 </body>
 </html>
