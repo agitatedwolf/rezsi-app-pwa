@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firebase Kapcsolat Teszt</title>
+    <title>Firebase & Firestore Komplex Teszt</title>
     <!-- Tailwind CSS a minimális stílushoz -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 flex items-center justify-center min-h-screen">
     
     <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-lg text-center">
-        <h1 class="text-3xl font-bold mb-4 text-blue-600">Firebase Kapcsolat Teszt</h1>
+        <h1 class="text-3xl font-bold mb-4 text-purple-700">Firebase & Firestore Komplex Teszt</h1>
         
         <!-- Statusz kijelző elem -->
         <div id="status-message" class="p-4 rounded-lg bg-gray-100 text-gray-700 font-mono">
@@ -21,14 +21,20 @@
         <p class="mt-4 text-sm text-gray-500">
             Felhasználó ID (UID): <span id="user-id" class="font-bold text-gray-800">Várakozás...</span>
         </p>
+
+        <!-- Firestore teszt eredménye -->
+        <div id="firestore-status" class="mt-4 p-3 rounded-lg bg-gray-200 text-gray-700 font-semibold hidden">
+            Firestore Teszt Állapot: <span id="firestore-result">Fut...</span>
+        </div>
     </div>
 
     <!-- Firebase szkriptek -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // A Firestore-ra nincs szükség a teszthez, de ha kellene, itt a helye:
-        // import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Firestore importok: getFirestore, doc, setDoc, getDoc, serverTimestamp
+        import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
 
         // --- FIREBASE KONFIGURÁCIÓ (HELYES KULCCSAL FRISSÍTVE) ---
         const firebaseConfig = {
@@ -44,35 +50,91 @@
         // DOM elemek elérése
         const statusEl = document.getElementById('status-message');
         const userIdEl = document.getElementById('user-id');
+        const firestoreStatusEl = document.getElementById('firestore-status');
+        const firestoreResultEl = document.getElementById('firestore-result');
+
+        let db; // Globális változó a Firestore objektumnak
+
+        // Firestore olvasási és írási teszt
+        async function testFirestore(userID) {
+            firestoreStatusEl.classList.remove('hidden');
+            firestoreResultEl.textContent = 'Inicializálás és I/O teszt...';
+            console.log("LOG: Firestore teszt indult...");
+
+            try {
+                // Adatbázis inicializálása
+                db = getFirestore();
+                
+                // Minta dokumentum útvonala (ez a users/{userId} alatti útvonalat használja a teszthez)
+                const testDocRef = doc(db, `users/${userID}/test_data`, "auth_firestore_test");
+                const testData = {
+                    message: "Firestore kapcsolat sikeresen tesztelve.",
+                    timestamp: serverTimestamp(),
+                    userID: userID
+                };
+
+                // 1. Írási teszt (setDoc)
+                firestoreResultEl.textContent = 'Írási teszt fut...';
+                await setDoc(testDocRef, testData, { merge: true });
+                console.log("LOG: Írás sikeres.");
+
+
+                // 2. Olvasási teszt (getDoc)
+                firestoreResultEl.textContent = 'Olvasási teszt fut...';
+                const docSnap = await getDoc(testDocRef);
+                
+                if (docSnap.exists() && docSnap.data().userID === userID) {
+                    // Sikeres I/O
+                    firestoreResultEl.textContent = 'SIKER! Olvasás és írás is működik.';
+                    firestoreStatusEl.classList.remove('bg-gray-200');
+                    firestoreStatusEl.classList.add('bg-green-100', 'text-green-800');
+                    console.log("LOG: Olvasás sikeres. Eredmény:", docSnap.data());
+                    return true;
+                } else {
+                    // Olvasási hiba
+                    throw new Error("Olvasási hiba: A dokumentum nem található vagy nem egyezik a user ID.");
+                }
+
+            } catch (error) {
+                // I/O Hiba
+                firestoreResultEl.textContent = `HIBA! Firestore I/O hiba: ${error.message}`;
+                firestoreStatusEl.classList.remove('bg-gray-200');
+                firestoreStatusEl.classList.add('bg-red-100', 'text-red-800');
+                console.error("LOG: Firestore Teszt Hiba:", error);
+                return false;
+            }
+        }
+
 
         async function initializeAndAuthenticate() {
             try {
                 // 1. Inicializálás
                 const app = initializeApp(firebaseConfig);
-                const auth = getAuth(app);
                 
                 statusEl.textContent = 'Firebase inicializálás sikeres. Anonim bejelentkezés...';
 
-                // 2. Anonim Bejelentkezés
+                // 2. Anonim Bejelentkezés (Auth)
+                const auth = getAuth(app);
                 const result = await signInAnonymously(auth);
                 const userID = result.user.uid;
 
-                // 3. Sikeres frissítés
-                statusEl.textContent = 'SIKERES FIREBASE BEJELENTKEZÉS! (Auth működik)';
+                // 3. Sikeres Auth
+                statusEl.textContent = 'SIKERES FIREBASE AUTHENTIKÁCIÓ!';
                 statusEl.classList.remove('bg-gray-100');
-                statusEl.classList.add('bg-green-100', 'text-green-700', 'font-bold');
+                statusEl.classList.add('bg-blue-100', 'text-blue-700', 'font-bold');
                 userIdEl.textContent = userID;
 
-                console.log("Firebase Teszt: SIKERES. UID:", userID);
+                // 4. Firestore Teszt indítása
+                await testFirestore(userID);
 
             } catch (error) {
-                // 4. Hiba
-                statusEl.textContent = 'HIBA! Nem sikerült a Firebase bejelentkezés. Ellenőrizd az API kulcsot és a konfigurációt!';
-                statusEl.classList.remove('bg-gray-100');
+                // 5. Auth Hiba
+                statusEl.textContent = 'HIBA! Nem sikerült a Firebase Auth bejelentkezés.';
+                statusEl.classList.remove('bg-gray-100', 'bg-blue-100');
                 statusEl.classList.add('bg-red-100', 'text-red-700', 'font-bold');
                 userIdEl.textContent = 'HIBA: ' + error.message;
 
-                console.error("Firebase Teszt: HIBA", error);
+                console.error("Firebase Teszt: Auth HIBA", error);
             }
         }
 
