@@ -47,7 +47,7 @@
         window.formatHUF = (amount) => { return amount; };
         window.formatHUFNoCurrency = (amount) => { return amount; };
         window.formatDate = (timestamp) => { return timestamp; };
-        window.deleteDocument = async (collection, docId) => { console.log('LOG: deleteDocument futott'); }; // Csak a váz, hiba nélkül
+        window.deleteDocument = async (collection, docId) => { console.log('LOG: deleteDocument futott'); }; 
 
 
         // --- HIBATŰRŐ loadSettings() - (NINCS BENNE renderSettings HÍVÁS!) ---
@@ -85,13 +85,14 @@
         function renderSettings() { console.log('LOG: 08 - renderSettings futott.'); } 
 
 
-        // --- renderApp() - BIZTONSÁGOS VÁZ, KÉNYSZERÍTETT ELREJTÉSSEL ---
+        // --- renderApp() - JAVÍTOTT VÁZ (Ellenőrzi, hogy létezik-e az elem, mielőtt módosítja) ---
         function renderApp() {
             console.log("LOG: 09 - renderApp elindult.");
             const statusDiv = document.getElementById('app-status');
             
-            if (statusDiv) {
-                // KÉNYSZERÍTETT ELREJTÉS: Közvetlen stílus módosítás!
+            // EZ A KRITIKUS JAVÍTÁS! Megakadályozza a "Cannot read properties of null" hibát.
+            if (statusDiv) { 
+                // KÉNYSZERÍTETT ELREJTÉS
                 statusDiv.style.display = 'none'; 
                 console.log("LOG: 10 - Betöltő képernyő ELREJTVE (style.display = 'none').");
             }
@@ -105,6 +106,7 @@
                     <p class="mt-4 font-bold text-red-500">Kérlek, pótold a **renderApp()** függvény és a többi függő függvény tartalmát az eredeti kódodból!</p>
                 `;
                 appContainer.classList.remove('hidden'); // MEGJELENIK A FŐ TARTALOM
+                console.log("LOG: 11 - Fő konténer látható.");
             }
             
             // ITT KELL MEGHÍVNI AZ EREDETI RENDERELÉSI FÜGGVÉNYEKET (pl.: renderBillList(); renderSummaryChart();)
