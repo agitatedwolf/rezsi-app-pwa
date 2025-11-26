@@ -38,13 +38,22 @@
         let isAuthReady = false;
         let currentSettings = null; 
         let currentMonthId = null;
-        // ... (Többi globális változó)
+        let billsSubscription = null;
+        let recurringBillsSubscription = null;
+        let metersSubscription = null; 
+        let recurringBillsCache = [];
+        let meterReadingsCache = []; 
+        let billsCache = []; // Hozzáadva a stabil működéshez
+        let recurringBills = []; // Hozzáadva a stabil működéshez
+        let currentMeters = []; // Hozzáadva a stabil működéshez
 
-        // ___ SEGÉDFÜGGVÉNYEK (RÖVIDÍTVE) ___
-        window.formatHUF = (amount) => { /* ... */ return amount; };
-        window.formatHUFNoCurrency = (amount) => { /* ... */ return amount; };
-        window.formatDate = (timestamp) => { /* ... */ return timestamp; };
-        // ... (Többi segédfüggvény)
+
+        // ___ SEGÉDFÜGGVÉNYEK (EZT PÓTOLD AZ EREDETI KÓDBÓL) ___
+        window.formatHUF = (amount) => { return amount; };
+        window.formatHUFNoCurrency = (amount) => { return amount; };
+        window.formatDate = (timestamp) => { return timestamp; };
+        window.deleteDocument = async (collection, docId) => { /* ... */ };
+
 
         // --- HIBATŰRŐ loadSettings() ---
         async function loadSettings() {
@@ -65,52 +74,51 @@
                     currentSettings = defaultSettings;
                 }
             } catch (error) {
-                // Hiba esetén is továbblép az app!
                 console.error("loadSettings HIBA! A PWA alapértelmezett beállításokkal fut tovább.", error);
                 currentSettings = { categories: [], currency: 'HUF', startMonth: new Date().toISOString().substring(0, 7) };
             }
             if (!currentMonthId) {
                 currentMonthId = new Date().toISOString().substring(0, 7);
             }
-            // renderSettings(); // Ezt a függvényt (ami a UI-t rajzolja) most kihagyjuk, hogy ne okozzon hibát!
+            // renderSettings() - Ezt a függvényt kell pótolni az eredeti kódból, ha létezett!
+        }
+        
+        // --- PÓTOLANDÓ FÜGGVÉNYEK VÁZAI ---
+        async function loadBills() { billsCache = []; } // Pótold az eredeti kóddal
+        async function loadRecurringBills() { recurringBills = []; } // Pótold az eredeti kóddal
+        async function loadMeterReadings() { currentMeters = []; } // Pótold az eredeti kóddal
+        function renderSettings() { console.log('renderSettings futott.'); } // Pótold az eredeti kóddal
+
+
+        // --- renderApp() - VISSZAÁLLÍTVA A HIBAMENTES VÁZRA ---
+        function renderApp() {
+            const statusDiv = document.getElementById('app-status');
+            if (statusDiv) {
+                statusDiv.classList.add('hidden'); // Eltünteti a "Betöltés..." képernyőt
+            }
+
+            const appContainer = document.getElementById('app-container');
+            if (appContainer) { 
+                appContainer.innerHTML = `
+                    <h1 class="text-2xl font-bold text-blue-600 mb-4">Üdvözlünk a Rezsi Nyilvántartóban!</h1>
+                    <p class="text-gray-700">A Firebase kapcsolat sikeresen felépült.</p>
+                    <p class="mt-4 font-bold text-red-500">Kérlek, pótold a renderApp() függvény tartalmát az eredeti kódodból!</p>
+                `;
+                appContainer.classList.remove('hidden');
+            }
+            
+            // ITT KELL MEGHÍVNI AZ EREDETI RENDERELÉSI FÜGGVÉNYEKET (pl.: renderBillList(), renderSummaryChart())
         }
 
-        // --- HIÁNYZÓ FÜGGVÉNYEK ÉS HELYESÍTETT RENDERELÉS ---
-        // Ezek a függvények az eredeti kódból valók, de most kihagyjuk őket, hogy a teszt lefusson:
-        async function loadBills() { /* ... */ }
-        async function loadRecurringBills() { /* ... */ }
-        async function loadMeterReadings() { /* ... */ }
-        
-        // A renderApp() függvényt nem is definiáljuk, helyette közvetlen HTML injektálás történik.
 
-
-        // ___ FŐ LOGIKA (VÉGSŐ TESZTELÉS) ___
+        // ___ FŐ LOGIKA ___
         async function loadInitialData() {
             await loadSettings();
-            await loadBills(); // Ezeknek most már le kell futniuk!
+            await loadBills(); 
             await loadRecurringBills();
             await loadMeterReadings(); 
             
-            // --- KÖZVETLEN HTML INJEKTÁLÁS (TESZT) ---
-            document.body.innerHTML = `
-                <div style="background-color: #ECFDF5; padding: 20px; margin-top: 50px; text-align: center; font-family: sans-serif; border: 2px solid #34D399; border-radius: 8px;">
-                    <h1 style="color: #065F46; font-size: 28px; font-weight: bold; margin-bottom: 10px;">
-                        ✅ A PWA KÉSZEN ÁLL! ✅
-                    </h1>
-                    <p style="color: #10B981; font-size: 18px; font-weight: 500;">
-                        A Firebase kapcsolat sikeresen felépült.
-                    </p>
-                    <p style="color: #4B5563; margin-top: 15px;">
-                        Kérlek, **telepítsd** az appot (böngésző menü > Telepítés), és állítsd vissza a `renderApp()` funkció tartalmát!
-                    </p>
-                </div>
-            `;
-            
-            // A régi "Betöltés..." képernyő elrejtése
-            const statusDiv = document.getElementById('app-status');
-            if (statusDiv) {
-                statusDiv.classList.add('hidden');
-            }
+            renderApp(); // Végre ez a hívás sem okoz hibát!
         }
 
         // --- AUTH LOGIKA ---
@@ -121,13 +129,13 @@
             if (user) {
                 userID = user.uid;
                 if (statusDiv) statusDiv.textContent = `Felhasználó: ${userID.substring(0, 8)}... Betöltés...`;
-                await loadInitialData(); // Elindítja a sikeres tesztet!
+                await loadInitialData();
             } else {
                 try {
                     const result = await signInAnonymously(auth);
                     userID = result.user.uid;
                     if (statusDiv) statusDiv.textContent = `Felhasználó: ${userID.substring(0, 8)}... Betöltés...`;
-                    await loadInitialData(); // Elindítja a sikeres tesztet!
+                    await loadInitialData();
                 } catch (error) {
                     if (statusDiv) statusDiv.innerHTML = `<span class="text-red-500">Hiba: Nem sikerült bejelentkezni. ${error.message}</span>`;
                     console.error("Authentication error:", error);
@@ -148,6 +156,6 @@
 
     <div id="app-container" class="p-4 hidden">
         </div>
-    
+
     </body>
 </html>
