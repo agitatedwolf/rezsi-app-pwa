@@ -110,7 +110,44 @@ const setupFirebaseAndAuth = async () => {
                             userId = result.user.uid;
                             isAuthReady = true;
                             document.getElementById('app-status').textContent = `Felhasználó: ${userId.substring(0, 8)}... Betöltés...`;
-                            await loadInitialData();
+                            await loadInitialData()async function loadInitialData() {
+    // EZT AZ ALERTET ILL. BE AZ 54. SOR ELÉ:
+    alert("Indul a beállítások betöltése..."); 
+    
+    async function loadSettings() {
+    try {
+        const docRef = doc(db, "users", userID);
+        const docSnap = await getDoc(docRef); // Ez a sor akaszthatja meg a programot
+
+        if (docSnap.exists()) {
+            currentSettings = docSnap.data();
+        } else {
+            // Beállítások hiányában létrehozzuk az alapértelmezett beállításokat
+            await setDoc(docRef, defaultSettings);
+            currentSettings = defaultSettings;
+        }
+
+        // Ha a beállítások betöltése sikerült, szóljon az alert!
+        alert("loadSettings SIKER!");
+
+    } catch (error) {
+        // Ha valami hiba van a Firestore-ban (pl. szabályok blokkolják)
+        alert("loadSettings HIBA! Lásd a konzolt (vagy ellenőrizd a Firestore szabályokat).");
+        console.error("Hiba a beállítások betöltésekor:", error);
+        // Biztosítsuk, hogy az alapértelmezett beállításokkal továbblépjen:
+        currentSettings = defaultSettings;
+    }
+
+    renderSettings();
+};
+    
+    // EZT AZ ALERTET ILL. BE A loadSettings UTÁN:
+    alert("Beállítások betöltve, indul a számlák betöltése..."); 
+    
+    await loadBills();
+    
+    renderApp();
+};
                         } catch (error) {
                             document.getElementById('app-status').innerHTML = `<span class="text-red-500">Hiba: Nem sikerült bejelentkezni. ${error.message}</span>`;
                             console.error("Authentication error:", error);
@@ -1151,6 +1188,7 @@ const setupFirebaseAndAuth = async () => {
 </body>
 
 </html>
+
 
 
 
