@@ -49,11 +49,11 @@
         window.deleteDocument = async (collection, docId) => { /* Pótold az eredeti kóddal! */ };
 
 
-        // --- HIBATŰRŐ loadSettings() - VISSZAÁLLÍTVA A DATABASE HOZZÁFÉRÉSSEL ---
+        // --- HIBATŰRŐ loadSettings() - (NINCS BENNE renderSettings HÍVÁS!) ---
         async function loadSettings() {
             try {
                 const docRef = doc(db, "users", userID);
-                const docSnap = await getDoc(docRef); // <-- Itt próbál hozzáférni az adatbázishoz
+                const docSnap = await getDoc(docRef); 
 
                 const defaultSettings = {
                     categories: ['Lakás/rezsi', 'Élelmiszer', 'Közlekedés', 'Egészség', 'Szórakozás', 'Egyéb'],
@@ -68,14 +68,10 @@
                     currentSettings = defaultSettings;
                 }
             } catch (error) {
-                // Ha a Firebase hívás hibára fut (pl. mégis rossz szabályok), akkor fallbackel
+                // Hiba esetén alapértelmezett beállításokkal fut tovább
                 console.error("loadSettings HIBA! A PWA alapértelmezett beállításokkal fut tovább.", error);
                 currentSettings = { categories: [], currency: 'HUF', startMonth: new Date().toISOString().substring(0, 7) };
             }
-            if (!currentMonthId) {
-                currentMonthId = new Date().toISOString().substring(0, 7);
-            }
-            renderSettings(); // Hívás az eredeti renderSettings()-re
         }
         
         // --- PÓTOLANDÓ ADATBETÖLTŐ ÉS RENDERELŐ FÜGGVÉNYEK VÁZAI ---
@@ -107,10 +103,16 @@
         }
 
 
-        // ___ FŐ LOGIKA ___
+        // ___ FŐ LOGIKA - JAVÍTOTT HÍVÁSI SORREND ___
         async function loadInitialData() {
-            // Visszaállítva a Firebase hívás!
             await loadSettings(); 
+            
+            // A renderSettings-et most itt hívjuk meg!
+            if (!currentMonthId) {
+                currentMonthId = new Date().toISOString().substring(0, 7);
+            }
+            renderSettings(); // Ez fut le a loadSettings után!
+            
             await loadBills(); 
             await loadRecurringBills(); 
             await loadMeterReadings(); 
