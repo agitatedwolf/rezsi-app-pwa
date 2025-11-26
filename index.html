@@ -26,7 +26,8 @@
   messagingSenderId: "917315288002",
   appId: "1:917315288002:web:8633213d831cbd6fe3f45b",
   measurementId: "G-RNXJ4MXTQY"
-};app = initializeApp(firebaseConfig);
+};
+app = initializeApp(firebaseConfig);
 auth = getAuth(app);
 db = getFirestore(app);
         const __initial_auth_token = undefined;
@@ -91,14 +92,9 @@ db = getFirestore(app);
         };
 
         // --- FIREBASE INDÍTÁS ÉS ADAT BETÖLTÉS ---
-
-        const setupFirebaseAndAuth = async () => {
-            try {
-                const firebaseConfig = JSON.parse(__firebase_config);
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                setLogLevel('error');
+const setupFirebaseAndAuth = async () => {
+    try {
+        setLogLevel('error');
 
                 document.getElementById('app-status').textContent = 'Hitelesítés...';
 
@@ -1155,5 +1151,6 @@ db = getFirestore(app);
 </body>
 
 </html>
+
 
 
