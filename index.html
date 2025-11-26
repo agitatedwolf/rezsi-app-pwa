@@ -285,8 +285,9 @@
                 auth = getAuth(app);
                 
                 // Hitelesítés
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
                     console.log("Sikeres bejelentkezés custom token-nel.");
                 } else {
                     await signInAnonymously(auth);
@@ -300,18 +301,19 @@
                         console.log("Bejelentkezett felhasználó:", currentUserId);
                         document.getElementById('user-id-display').textContent = `Felhasználói azonosító (UID): ${currentUserId}`;
                         
-                        // JAVÍTÁS: Adatok betöltése CSAK a hitelesítés után, és CSAK egyszer.
+                        // Adatok betöltése CSAK a hitelesítés után, és CSAK egyszer.
                         if (!dataListenersAttached) {
                             loadAllData();
                         }
                     } else {
                         console.log("Nincs bejelentkezett felhasználó.");
-                        // Ha itt hiba van, akkor engedélyezési hiba is lehet (de az anonim bejelentkezés minimalizálja ezt)
+                        currentUserId = null; // Biztosítjuk, hogy null legyen, ha nincs bejelentkezve
                     }
                 });
 
             } catch (error) {
                 console.error("Alapvető hiba a Firebase inicializáláskor:", error);
+                showToast("Hiba a Firebase inicializálásakor. Kérjük, próbálja újra később!", true);
             }
         }
 
@@ -323,7 +325,6 @@
             const itemsRef = collection(db, itemsCollectionPath(currentUserId));
             const itemsQuery = query(itemsRef);
             
-            // JAVÍTÁS: A Firestore hibát (Missing or insufficient permissions) kezeljük itt
             onSnapshot(itemsQuery, (snapshot) => {
                 monthlyItems = [];
                 snapshot.forEach(doc => {
@@ -333,6 +334,7 @@
                 updateMonthDisplay(); // Frissíti a kijelzőt
             }, (error) => {
                 console.error("Hiba az onSnapshot-ban (items):", error);
+                showToast("Hiba a tételek betöltésekor. Lehet, hogy nincs jogosultság.", true);
             });
 
             // 2. Kezelt kategóriák hallgatója
@@ -356,8 +358,14 @@
             dataListenersAttached = true;
         }
 
-        // Tétel hozzáadása a Firestore-hoz
+        // Tétel hozzáadása a Firestore-hoz (FIX: ellenőrizzük, hogy a user ID be van-e állítva)
         async function addItem(itemData) {
+            if (!currentUserId || !db) {
+                showToast("Hiba: A felhasználó még nincs hitelesítve vagy az adatbázis nem elérhető. Kérlek várj egy pillanatot, amíg az azonosító betöltődik, és próbáld újra!", true);
+                console.error("Hiba: Nincs érvényes currentUserId vagy db a tétel hozzáadásakor.");
+                return; // Kritikus visszatérés, ha a hitelesítés nem teljes
+            }
+            
             try {
                 const itemsRef = collection(db, itemsCollectionPath(currentUserId));
                 await addDoc(itemsRef, itemData);
@@ -366,7 +374,7 @@
                 hideAllModals();
             } catch (e) {
                 console.error("Hiba tétel hozzáadásakor: ", e);
-                showToast("Hiba történt a tétel hozzáadásakor.", true);
+                showToast("Hiba történt a tétel hozzáadásakor. (Engedélyezési probléma lehet)", true);
             }
         }
 
@@ -384,6 +392,10 @@
         
         // Kezelt kategória mentése/frissítése
         async function saveManagedCategory(categoryData, isUpdate) {
+             if (!currentUserId || !db) {
+                showToast("Hiba: A felhasználó még nincs hitelesítve. Kérlek várj egy pillanatot és próbáld újra!", true);
+                return;
+            }
             try {
                 if (isUpdate) {
                     const docRef = doc(db, managedCategoriesCollectionPath(currentUserId), categoryData.id);
@@ -422,6 +434,8 @@
         // Új tétel űrlap kezelése
         document.getElementById('add-item-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            console.log("Add Item Form Submitted."); // Debug: Ellenőrizd, hogy ez megjelenik-e a konzolban
+
             const type = document.getElementById('item-type').value;
             const category = document.getElementById('item-category').value.trim();
             const amount = parseInt(document.getElementById('item-amount').value, 10);
@@ -710,7 +724,7 @@
             }
             
             initializeFirebase();
-            updateMonthDisplay(); // Első megjelenítés (a hitelesítés befejeztével a loadAllData újra hívni fogja)
+            updateMonthDisplay(); // Első megjelenítés
         }
     </script>
 </body>
