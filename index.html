@@ -74,6 +74,49 @@
             background-color: #fee2e2;
             color: #991b1b;
         }
+        /* Style for the confirmation modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+        .accordion-header {
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .accordion-header:hover {
+            color: #4c51bf;
+        }
+        .accordion-icon {
+            transition: transform 0.3s ease;
+        }
+        .accordion-icon.rotated {
+            transform: rotate(180deg);
+        }
+        .accordion-content.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -83,35 +126,35 @@
             <p class="text-sm text-gray-500">Felhasználói Azonosító: <span id="user-id-display">Betöltés...</span></p>
         </header>
 
-        <!-- Beállítások Szekció -->
+        <!-- Beállítások Szekció (Összecsukható) -->
         <div class="card">
-            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Beállítások</h2>
-            <form id="settings-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="input-group">
-                    <label for="currency">Pénznem</label>
-                    <select id="currency" name="currency">
-                        <option value="HUF">HUF (Forint)</option>
-                        <option value="EUR">EUR (Euro)</option>
-                        <option value="USD">USD (Dollár)</option>
-                    </select>
-                </div>
-                <div class="input-group">
-                    <label for="base-cost">Alapdíj (havi)</label>
-                    <input type="number" id="base-cost" name="base-cost" placeholder="Pl. 10000" step="100" required>
-                </div>
-                <div class="input-group">
-                    <label for="heating-type">Fűtés Típus</label>
-                    <select id="heating-type" name="heating-type">
-                        <option value="gas">Gáz</option>
-                        <option value="electric">Elektromos</option>
-                        <option value="district">Távfűtés</option>
-                    </select>
-                </div>
-                <div class="md:col-span-2">
-                    <button type="submit" class="btn-primary w-full">Beállítások Mentése</button>
-                </div>
-            </form>
-            <div id="settings-message-box" class="message-box hidden mt-4"></div>
+            <div id="settings-accordion-header" class="accordion-header">
+                <h2 class="text-2xl font-semibold text-gray-700">Beállítások</h2>
+                <!-- Nyíl ikon -->
+                <svg id="settings-accordion-icon" class="accordion-icon w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            
+            <div id="settings-accordion-content" class="accordion-content">
+                <form id="settings-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="input-group">
+                        <label for="currency">Pénznem</label>
+                        <select id="currency" name="currency">
+                            <option value="HUF">HUF (Forint)</option>
+                            <option value="EUR">EUR (Euro)</option>
+                            <option value="USD">USD (Dollár)</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="base-cost">Alapdíj (havi)</label>
+                        <input type="number" id="base-cost" name="base-cost" placeholder="Pl. 10000" step="100" required>
+                    </div>
+                    <!-- Fűtés Típus mező törölve a kérésnek megfelelően -->
+                    <div class="md:col-span-2">
+                        <button type="submit" class="btn-primary w-full">Beállítások Mentése</button>
+                    </div>
+                </form>
+                <div id="settings-message-box" class="message-box hidden mt-4"></div>
+            </div>
         </div>
 
         <!-- Fogyasztás Rögzítése Szekció -->
@@ -157,6 +200,7 @@
 
             <div class="mt-6">
                 <h3 class="text-xl font-semibold text-gray-700 mb-3">Fogyasztási Előzmények</h3>
+                <!-- Ezt a listát használjuk a tételek törlésére -->
                 <ul id="consumption-list" class="space-y-2 max-h-60 overflow-y-auto pr-2">
                     <!-- A lista elem ide kerül -->
                 </ul>
@@ -164,32 +208,40 @@
         </div>
     </div>
 
+    <!-- Törlést megerősítő Modal -->
+    <div id="confirm-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Megerősítés</h3>
+            <p id="modal-message" class="mb-6 text-gray-600">Biztosan törölni szeretné ezt a fogyasztási bejegyzést?</p>
+            <div class="flex justify-center space-x-4">
+                <!-- A Modal bezárása, ha mégsem akarja törölni -->
+                <button id="modal-cancel-btn" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 transition">Mégse</button>
+                <!-- A tényleges törlést elindító gomb -->
+                <button id="modal-confirm-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition">Törlés</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, query, addDoc, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, addDoc, serverTimestamp, setLogLevel, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // =========================================================================
-        // JAVÍTÁS: FIREBASE KONFIGURÁCIÓ KÖZVETLEN BEÁLLÍTÁSA GITHUB PAGES-HEZ
-        //          AZ ÖN ÁLTAL MEGADOTT ADATOK HASZNÁLATÁVAL
+        // FIREBASE KONFIGURÁCIÓ
         // =========================================================================
         
+        // Mivel a Githup Pages-en fut, a configot az előző beszélgetés alapján hardcode-olom.
         const customFirebaseConfig = {
             apiKey: "AIzaSyAkXnuZDqZVnag2G1pTB4mWwKwrjeEinOQ", 
             authDomain: "rezsi-nyilvantarto.firebaseapp.com",
             projectId: "rezsi-nyilvantarto",
             storageBucket: "rezsi-nyilvantarto.firebasestorage.app",
             messagingSenderId: "917315288002",
-            appId: "1:917315288002:web:8633213d831cbd6fe3f45b" // Ez a hosszú string
+            appId: "1:917315288002:web:8633213d831cbd6fe3f45b"
         };
-
-        // A Canvas környezeti változók figyelmen kívül hagyása, és a hardcode-olt config használata
         const firebaseConfig = customFirebaseConfig;
-        
-        // Az appId-t is érdemes rögzíteni egy rövid, tiszta névre (Ez az adatok mappaneve a Firestore-ban)
         const appId = 'rezsi-app-pwa'; 
-
-        // Az __initial_auth_token hiányozni fog, így automatikusan anonim bejelentkezést használunk.
         const initialAuthToken = null; 
 
         // =========================================================================
@@ -200,15 +252,10 @@
         let userId = null;
         let isAuthReady = false;
         
-        // Debug naplózás bekapcsolása (segít a hibakeresésben)
+        // Debug naplózás bekapcsolása
         setLogLevel('debug');
-
-        if (firebaseConfig && firebaseConfig.apiKey !== "AIzaSyAkXnuZDqZVnag2G1pTB4mWwKwrjeEinOQ") {
-             // Ez a "if" csak a placeholder check volt. Mivel már van kulcs, az if-et meg kell változtatni.
-             // Mivel a config már be van állítva, azonnal inicializálhatjuk.
-        }
         
-        // ÚJ LOGIKA: Config beállítva, inicializáljuk!
+        // Inicializálás
         app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         auth = getAuth(app);
@@ -220,15 +267,13 @@
                 document.getElementById('user-id-display').textContent = userId;
                 console.log("Firestore Auth sikeres. UID:", userId);
                 isAuthReady = true;
-                // Auth után betölthetjük az adatokat
                 await loadData();
             } else {
-                // Mivel a tokent nem adjuk át a GitHub Pages-en, anonim bejelentkezés
                 try {
                     if (initialAuthToken) {
                         await signInWithCustomToken(auth, initialAuthToken);
                     } else {
-                        // Anonim bejelentkezés ha nincs token
+                        // Anonim bejelentkezés
                         await signInAnonymously(auth);
                     }
                 } catch (error) {
@@ -241,7 +286,6 @@
 
         // Segédfüggvény: Dokumentumhivatkozás lekérése a privát beállításokhoz
         const getSettingsDocRef = (db, userId, appId) => {
-            // Útvonal: artifacts / {appId} / users / {userId} / settings / general
             return doc(db, 'artifacts', appId, 'users', userId, 'settings', 'general');
         };
 
@@ -263,7 +307,6 @@
         const defaultSettings = {
             currency: 'HUF',
             baseCost: 10000,
-            heatingType: 'gas'
         };
 
         let currentSettings = { ...defaultSettings };
@@ -289,20 +332,15 @@
                     // Beállítások frissítése a felületen
                     document.getElementById('currency').value = currentSettings.currency || defaultSettings.currency;
                     document.getElementById('base-cost').value = currentSettings.baseCost || defaultSettings.baseCost;
-                    document.getElementById('heating-type').value = currentSettings.heatingType || defaultSettings.heatingType;
                 } else {
                     console.log("Nincsenek mentett beállítások. Az alapértelmezettek használata.");
-                    // Mégis frissítsük a felületet az alapértelmezettel
                     document.getElementById('currency').value = defaultSettings.currency;
                     document.getElementById('base-cost').value = defaultSettings.baseCost;
-                    document.getElementById('heating-type').value = defaultSettings.heatingType;
                 }
-                // Újraszámolás a frissített beállításokkal
                 updateSummary();
             }, (error) => {
                 console.error("Hiba a beállítások figyelésekor:", error);
-                // A Firebase Security Rules gyakran okozza ezt a hibát.
-                showMessage('settings-message-box', `Hiba a beállítások betöltésekor. Lehet, hogy a Firestore Security Rules-t kell ellenőrizni: ${error.message}`, true);
+                showMessage('settings-message-box', `Hiba a beállítások betöltésekor. ${error.message}`, true);
             });
 
             // B. Fogyasztások figyelése (onSnapshot)
@@ -313,9 +351,9 @@
                     consumptionData.push({
                         id: doc.id,
                         ...data,
-                        // Átalakítás: A Firestore Timestamp objektumot Date-re
+                        // Firestore Timestamp objektumot Date-re
                         date: data.date && data.date.toDate ? data.date.toDate() : new Date(data.date),
-                        // Biztosítsuk, hogy a numerikus értékek számok legyenek
+                        // Numerikus értékek biztosítása
                         amount: Number(data.amount) || 0,
                         price: Number(data.price) || 0
                     });
@@ -325,7 +363,7 @@
                 renderConsumptionList();
             }, (error) => {
                 console.error("Hiba a fogyasztások figyelésekor:", error);
-                showMessage('consumption-message-box', `Hiba a fogyasztási adatok betöltésekor. Lehet, hogy a Firestore Security Rules-t kell ellenőrizni: ${error.message}`, true);
+                showMessage('consumption-message-box', `Hiba a fogyasztási adatok betöltésekor. ${error.message}`, true);
             });
         };
 
@@ -342,14 +380,11 @@
             const settings = {
                 currency: formData.get('currency'),
                 baseCost: Number(formData.get('base-cost')),
-                heatingType: formData.get('heating-type'),
-                // Hozzáadjuk a timestampet az utolsó frissítéshez
                 updatedAt: serverTimestamp()
             };
 
             try {
                 const settingsRef = getSettingsDocRef(db, userId, appId);
-                // A setDoc felülírja a dokumentumot, ha létezik, létrehozza, ha nem.
                 await setDoc(settingsRef, settings, { merge: true });
                 showMessage('settings-message-box', 'Beállítások sikeresen elmentve!');
             } catch (error) {
@@ -373,7 +408,6 @@
                 type: formData.get('utility-type'),
                 amount: Number(formData.get('consumption-amount')),
                 price: Number(formData.get('price-per-unit')),
-                // Dátum objektum mentése Firestore Timestampként
                 date: new Date(dateStr),
                 createdAt: serverTimestamp()
             };
@@ -385,10 +419,11 @@
 
             try {
                 const consumptionsRef = getConsumptionCollectionRef(db, userId, appId);
-                // addDoc hozzáad egy új dokumentumot a gyűjteményhez automatikus azonosítóval
                 await addDoc(consumptionsRef, consumption);
                 showMessage('consumption-message-box', 'Fogyasztás sikeresen rögzítve!');
                 e.target.reset(); // Űrlap törlése
+                // Beállítjuk a mai dátumot újra az űrlapon
+                document.getElementById('consumption-date').valueAsDate = new Date();
             } catch (error) {
                 console.error("Hiba a fogyasztás rögzítésekor:", error);
                 showMessage('consumption-message-box', `Hiba a rögzítéskor: ${error.message}`, true);
@@ -400,7 +435,7 @@
             let totalElectric = 0;
             let totalGas = 0;
             let totalWater = 0;
-            let totalCost = currentSettings.baseCost || defaultSettings.baseCost; // Alapdíj hozzáadása
+            let totalCost = currentSettings.baseCost !== undefined ? currentSettings.baseCost : defaultSettings.baseCost; 
 
             consumptionData.forEach(item => {
                 const cost = item.amount * item.price;
@@ -426,8 +461,11 @@
             const currencySymbol = currentSettings.currency || defaultSettings.currency;
             document.getElementById('estimated-cost').textContent = `${totalCost.toLocaleString('hu-HU', { maximumFractionDigits: 0 })} ${currencySymbol}`;
         };
+        
+        // Modal kezelő változók
+        let itemToDelete = null;
 
-        // 6. Fogyasztási lista megjelenítése
+        // 6. Fogyasztási lista megjelenítése (Törlés gombbal)
         const renderConsumptionList = () => {
             const listElement = document.getElementById('consumption-list');
             listElement.innerHTML = ''; // Lista törlése
@@ -436,27 +474,94 @@
             const sortedData = consumptionData.sort((a, b) => b.date - a.date);
 
             if (sortedData.length === 0) {
-                listElement.innerHTML = '<li class="text-gray-500 italic">Még nem rögzített fogyasztást.</li>';
+                listElement.innerHTML = '<li class="text-gray-500 italic p-3">Még nem rögzített fogyasztást.</li>';
                 return;
             }
 
             sortedData.forEach(item => {
                 const dateString = item.date.toLocaleDateString('hu-HU');
-                const cost = (item.amount * item.price).toFixed(2);
+                const cost = (item.amount * item.price).toFixed(0);
                 const currency = currentSettings.currency || defaultSettings.currency;
 
                 const listItem = document.createElement('li');
                 listItem.className = 'flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100 rounded-lg';
                 listItem.innerHTML = `
-                    <div class="flex flex-col">
+                    <div class="flex flex-col flex-grow truncate mr-2">
                         <span class="font-medium text-gray-800">${dateString} - ${item.type.charAt(0).toUpperCase() + item.type.slice(1)}</span>
                         <span class="text-sm text-gray-600">${item.amount.toFixed(1)} egység @ ${item.price.toFixed(2)} ${currency}/egység</span>
                     </div>
-                    <span class="font-bold text-red-600">${cost} ${currency}</span>
+                    <div class="flex items-center space-x-3 flex-shrink-0">
+                        <span class="font-bold text-red-600">${cost} ${currency}</span>
+                        <!-- Törlés gomb hozzáadása -->
+                        <button data-id="${item.id}" class="delete-btn text-red-500 hover:text-red-700 p-1 rounded transition" title="Törlés">
+                            <!-- Törlés ikon (SVG) -->
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
                 `;
                 listElement.appendChild(listItem);
             });
+            
+            // Eseménykezelők hozzáadása a törlés gombokhoz a listához
+            document.querySelectorAll('.delete-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    itemToDelete = this.dataset.id;
+                    showConfirmModal();
+                });
+            });
         };
+
+        // 7. Fogyasztás törlése (Modal + Firebase)
+        const deleteConsumption = async (docId) => {
+            if (!isAuthReady || !userId) {
+                showMessage('consumption-message-box', 'Hiba: A felhasználó nincs hitelesítve.', true);
+                return;
+            }
+
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'users', userId, 'consumptions', docId);
+                await deleteDoc(docRef);
+                showMessage('consumption-message-box', 'Fogyasztási tétel sikeresen törölve.');
+            } catch (error) {
+                console.error("Hiba a törléskor:", error);
+                showMessage('consumption-message-box', `Hiba a törléskor: ${error.message}`, true);
+            }
+        };
+
+        // 8. Modal logikája
+        const confirmModal = document.getElementById('confirm-modal');
+        const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+        const modalCancelBtn = document.getElementById('modal-cancel-btn');
+
+        const showConfirmModal = () => {
+            confirmModal.classList.remove('hidden');
+        };
+
+        const hideConfirmModal = () => {
+            confirmModal.classList.add('hidden');
+            itemToDelete = null; 
+        };
+
+        modalCancelBtn.addEventListener('click', hideConfirmModal);
+        
+        modalConfirmBtn.addEventListener('click', () => {
+            if (itemToDelete) {
+                deleteConsumption(itemToDelete);
+            }
+            hideConfirmModal();
+        });
+
+        // 9. Accordion (Összecsukható) logika
+        const settingsHeader = document.getElementById('settings-accordion-header');
+        const settingsContent = document.getElementById('settings-accordion-content');
+        const settingsIcon = document.getElementById('settings-accordion-icon');
+        
+        // Alapértelmezett állapot (kinyitva hagyjuk, de a kérés az, hogy összecsukható legyen)
+
+        settingsHeader.addEventListener('click', () => {
+            settingsContent.classList.toggle('hidden');
+            settingsIcon.classList.toggle('rotated');
+        });
 
         // Dátum mező alapértelmezett értéke a mai dátum
         document.getElementById('consumption-date').valueAsDate = new Date();
