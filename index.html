@@ -55,9 +55,14 @@
             border-radius: 8px;
             font-weight: 600;
             transition: background-color 0.2s;
+            position: relative; /* A spinner pozicionálásához */
         }
         .btn-primary:hover {
             background-color: #3b42a8;
+        }
+        .btn-primary:disabled {
+            background-color: #a0aec0;
+            cursor: not-allowed;
         }
         .message-box {
             padding: 15px;
@@ -117,24 +122,39 @@
         .accordion-content.hidden {
             display: none;
         }
+
+        /* Loading Spinner CSS */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #ffffff;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header class="text-center mb-8">
             <h1 class="text-4xl font-bold text-gray-800 mb-2">Rezsi Költségkövető</h1>
-            <p class="text-sm text-gray-500">Felhasználói Azonosító: <span id="user-id-display">Betöltés...</span></p>
         </header>
 
         <!-- Beállítások Szekció (Összecsukható) -->
         <div class="card">
             <div id="settings-accordion-header" class="accordion-header">
                 <h2 class="text-2xl font-semibold text-gray-700">Beállítások</h2>
-                <!-- Nyíl ikon -->
                 <svg id="settings-accordion-icon" class="accordion-icon w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             
-            <div id="settings-accordion-content" class="accordion-content">
+            <div id="settings-accordion-content" class="accordion-content hidden">
+                 <!-- Felhasználói azonosító áthelyezve ide (UX javítás) -->
+                <p class="text-sm text-gray-500 mb-4">Felhasználói Azonosító (Debug): <span id="user-id-display">Betöltés...</span></p>
+
                 <form id="settings-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="input-group">
                         <label for="currency">Pénznem</label>
@@ -148,7 +168,7 @@
                         <label for="base-cost">Alapdíj (havi)</label>
                         <input type="number" id="base-cost" name="base-cost" placeholder="Pl. 10000" step="100" required>
                     </div>
-                    <!-- Fűtés Típus mező törölve a kérésnek megfelelően -->
+                    
                     <div class="md:col-span-2">
                         <button type="submit" class="btn-primary w-full">Beállítások Mentése</button>
                     </div>
@@ -169,33 +189,38 @@
                         <option value="water">Víz</option>
                     </select>
                 </div>
+                <!-- Egységár mező, ami automatikusan kitöltődik -->
+                <div class="input-group">
+                    <label for="price-per-unit">Egységár (<span id="currency-unit-display">HUF</span>)</label>
+                    <input type="number" id="price-per-unit" name="price-per-unit" placeholder="Pl. 36.5" step="0.01" required>
+                </div>
                 <div class="input-group">
                     <label for="consumption-amount">Fogyasztás (egység)</label>
                     <input type="number" id="consumption-amount" name="consumption-amount" placeholder="Pl. 150 kWh" step="0.1" required>
                 </div>
-                <div class="input-group">
-                    <label for="price-per-unit">Egységár</label>
-                    <input type="number" id="price-per-unit" name="price-per-unit" placeholder="Pl. 36.5 Ft/kWh" step="0.01" required>
-                </div>
+                
                 <div class="input-group md:col-span-3">
                     <label for="consumption-date">Dátum</label>
                     <input type="date" id="consumption-date" name="consumption-date" required>
                 </div>
                 <div class="md:col-span-3">
-                    <button type="submit" class="btn-primary w-full">Fogyasztás Mentése</button>
+                    <button type="submit" id="save-consumption-btn" class="btn-primary w-full flex justify-center items-center">
+                        <span id="save-text">Fogyasztás Mentése</span>
+                        <div id="save-spinner" class="spinner hidden ml-2"></div>
+                    </button>
                 </div>
             </form>
             <div id="consumption-message-box" class="message-box hidden mt-4"></div>
         </div>
 
-        <!-- Kimutatások Szekció -->
+        <!-- Kimutatások Szekció (Havi Összehasonlító Logika) -->
         <div class="card">
             <h2 class="text-2xl font-semibold text-gray-700 mb-4">Kimutatások</h2>
-            <div id="summary-display" class="space-y-3">
-                <p>Összes Fogyasztás (Villany): <span id="total-electric" class="font-bold">0</span></p>
-                <p>Összes Fogyasztás (Gáz): <span id="total-gas" class="font-bold">0</span></p>
-                <p>Összes Fogyasztás (Víz): <span id="total-water" class="font-bold">0</span></p>
-                <p class="text-lg font-bold">Becsült Havi Költség: <span id="estimated-cost" class="text-green-600">0 HUF</span></p>
+            
+            <!-- Havi Összehasonlítás -->
+            <h3 class="text-xl font-semibold text-gray-700 mb-3 border-b pb-2">Havi Összefoglaló</h3>
+            <div id="monthly-summary" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <!-- Ez a szekció frissül a havi adatokkal és összehasonlításokkal -->
             </div>
 
             <div class="mt-6">
@@ -214,9 +239,7 @@
             <h3 class="text-xl font-bold text-gray-800 mb-4">Megerősítés</h3>
             <p id="modal-message" class="mb-6 text-gray-600">Biztosan törölni szeretné ezt a fogyasztási bejegyzést?</p>
             <div class="flex justify-center space-x-4">
-                <!-- A Modal bezárása, ha mégsem akarja törölni -->
                 <button id="modal-cancel-btn" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 transition">Mégse</button>
-                <!-- A tényleges törlést elindító gomb -->
                 <button id="modal-confirm-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition">Törlés</button>
             </div>
         </div>
@@ -231,7 +254,7 @@
         // FIREBASE KONFIGURÁCIÓ
         // =========================================================================
         
-        // Mivel a Githup Pages-en fut, a configot az előző beszélgetés alapján hardcode-olom.
+        // Ez a konfiguráció biztosítja, hogy az alkalmazás futtatható legyen
         const customFirebaseConfig = {
             apiKey: "AIzaSyAkXnuZDqZVnag2G1pTB4mWwKwrjeEinOQ", 
             authDomain: "rezsi-nyilvantarto.firebaseapp.com",
@@ -286,6 +309,7 @@
 
         // Segédfüggvény: Dokumentumhivatkozás lekérése a privát beállításokhoz
         const getSettingsDocRef = (db, userId, appId) => {
+            // A beállítások (alapdíj, pénznem, utolsó árak) tárolása
             return doc(db, 'artifacts', appId, 'users', userId, 'settings', 'general');
         };
 
@@ -307,6 +331,11 @@
         const defaultSettings = {
             currency: 'HUF',
             baseCost: 10000,
+            lastPrices: {
+                electric: 40.0,
+                gas: 120.0,
+                water: 350.0
+            }
         };
 
         let currentSettings = { ...defaultSettings };
@@ -315,32 +344,35 @@
         // 2. Adatok betöltése és valós idejű figyelése
         const loadData = async () => {
             if (!isAuthReady || !userId) {
-                console.warn("Az Auth még nem készült el, kihagyva az adatbetöltést.");
                 return;
             }
-
-            console.log("Adatok betöltése indítása...");
 
             const settingsRef = getSettingsDocRef(db, userId, appId);
             const consumptionsRef = getConsumptionCollectionRef(db, userId, appId);
 
             // A. Beállítások figyelése (onSnapshot)
             onSnapshot(settingsRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    currentSettings = { ...defaultSettings, ...docSnap.data() };
-                    console.log("Beállítások betöltve:", currentSettings);
-                    // Beállítások frissítése a felületen
-                    document.getElementById('currency').value = currentSettings.currency || defaultSettings.currency;
-                    document.getElementById('base-cost').value = currentSettings.baseCost || defaultSettings.baseCost;
-                } else {
-                    console.log("Nincsenek mentett beállítások. Az alapértelmezettek használata.");
-                    document.getElementById('currency').value = defaultSettings.currency;
-                    document.getElementById('base-cost').value = defaultSettings.baseCost;
-                }
+                let loadedSettings = docSnap.exists() ? docSnap.data() : {};
+                
+                // Beállítja az alapértelmezett árakat, ha még nincsenek mentve
+                currentSettings = { 
+                    ...defaultSettings, 
+                    ...loadedSettings,
+                    lastPrices: { ...defaultSettings.lastPrices, ...(loadedSettings.lastPrices || {}) }
+                };
+                
+                // Beállítások frissítése a felületen
+                document.getElementById('currency').value = currentSettings.currency;
+                document.getElementById('base-cost').value = currentSettings.baseCost;
+                
+                // Frissíti a pénznem egységet a fogyasztás űrlapon
+                document.getElementById('currency-unit-display').textContent = currentSettings.currency;
+                
+                // Betölti az utolsó árat az űrlapra
+                updatePricePerUnit();
                 updateSummary();
             }, (error) => {
                 console.error("Hiba a beállítások figyelésekor:", error);
-                showMessage('settings-message-box', `Hiba a beállítások betöltésekor. ${error.message}`, true);
             });
 
             // B. Fogyasztások figyelése (onSnapshot)
@@ -351,14 +383,17 @@
                     consumptionData.push({
                         id: doc.id,
                         ...data,
-                        // Firestore Timestamp objektumot Date-re
+                        // Firestore Timestamp objektumot Date-re konvertálás, ha szükséges
                         date: data.date && data.date.toDate ? data.date.toDate() : new Date(data.date),
                         // Numerikus értékek biztosítása
                         amount: Number(data.amount) || 0,
                         price: Number(data.price) || 0
                     });
                 });
-                console.log("Fogyasztási adatok betöltve:", consumptionData.length, "elem");
+                
+                // Adatok rendezése dátum szerint, legújabb elöl
+                consumptionData.sort((a, b) => b.date - a.date);
+                
                 updateSummary();
                 renderConsumptionList();
             }, (error) => {
@@ -367,7 +402,21 @@
             });
         };
 
-        // 3. Beállítások mentése
+        // 3. Utolsó egységár kitöltése
+        const updatePricePerUnit = () => {
+            const utilityType = document.getElementById('utility-type').value;
+            const priceInput = document.getElementById('price-per-unit');
+            
+            if (currentSettings.lastPrices && currentSettings.lastPrices[utilityType] !== undefined) {
+                priceInput.value = currentSettings.lastPrices[utilityType];
+            }
+        };
+        
+        // Eseménykezelő a Közüzemi Típus változásakor
+        document.getElementById('utility-type').addEventListener('change', updatePricePerUnit);
+
+
+        // 4. Beállítások mentése
         document.getElementById('settings-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -380,6 +429,7 @@
             const settings = {
                 currency: formData.get('currency'),
                 baseCost: Number(formData.get('base-cost')),
+                // A lastPrices mező marad, ahogy a onSnapshot-ban frissül
                 updatedAt: serverTimestamp()
             };
 
@@ -393,7 +443,7 @@
             }
         });
 
-        // 4. Fogyasztás rögzítése
+        // 5. Fogyasztás rögzítése és utolsó ár mentése (Aktivitás jelzéssel)
         document.getElementById('consumption-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -402,10 +452,19 @@
                 return;
             }
 
+            const saveBtn = document.getElementById('save-consumption-btn');
+            const saveText = document.getElementById('save-text');
+            const saveSpinner = document.getElementById('save-spinner');
+
+            saveBtn.disabled = true;
+            saveText.textContent = 'Mentés...';
+            saveSpinner.classList.remove('hidden');
+
             const formData = new FormData(e.target);
             const dateStr = formData.get('consumption-date');
+            const utilityType = formData.get('utility-type');
             const consumption = {
-                type: formData.get('utility-type'),
+                type: utilityType,
                 amount: Number(formData.get('consumption-amount')),
                 price: Number(formData.get('price-per-unit')),
                 date: new Date(dateStr),
@@ -414,71 +473,162 @@
 
             if (isNaN(consumption.amount) || isNaN(consumption.price)) {
                 showMessage('consumption-message-box', 'Kérjük, érvényes számokat adjon meg.', true);
+                saveBtn.disabled = false;
+                saveText.textContent = 'Fogyasztás Mentése';
+                saveSpinner.classList.add('hidden');
                 return;
             }
 
             try {
                 const consumptionsRef = getConsumptionCollectionRef(db, userId, appId);
                 await addDoc(consumptionsRef, consumption);
+                
+                // Utolsó ár frissítése a beállításokban
+                const settingsRef = getSettingsDocRef(db, userId, appId);
+                await setDoc(settingsRef, { 
+                    lastPrices: { 
+                        ...currentSettings.lastPrices, 
+                        [utilityType]: consumption.price 
+                    },
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+
                 showMessage('consumption-message-box', 'Fogyasztás sikeresen rögzítve!');
                 e.target.reset(); // Űrlap törlése
-                // Beállítjuk a mai dátumot újra az űrlapon
-                document.getElementById('consumption-date').valueAsDate = new Date();
+                document.getElementById('consumption-date').valueAsDate = new Date(); // Dátum visszaállítása
+                updatePricePerUnit(); // Utolsó ár betöltése az űrlapra
             } catch (error) {
                 console.error("Hiba a fogyasztás rögzítésekor:", error);
                 showMessage('consumption-message-box', `Hiba a rögzítéskor: ${error.message}`, true);
+            } finally {
+                saveBtn.disabled = false;
+                saveText.textContent = 'Fogyasztás Mentése';
+                saveSpinner.classList.add('hidden');
             }
         });
 
-        // 5. Kimutatások frissítése
+        // Segédfüggvény: Hó eleji dátum létrehozása
+        const getMonthStart = (date) => {
+            return new Date(date.getFullYear(), date.getMonth(), 1);
+        };
+
+        // Segédfüggvény: Hó végi dátum létrehozása
+        const getMonthEnd = (date) => {
+            return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59);
+        };
+
+        // 6. Kimutatások és Havi Összehasonlítás frissítése
         const updateSummary = () => {
-            let totalElectric = 0;
-            let totalGas = 0;
-            let totalWater = 0;
-            let totalCost = currentSettings.baseCost !== undefined ? currentSettings.baseCost : defaultSettings.baseCost; 
+            const now = new Date();
+            const currentMonthStart = getMonthStart(now);
+            const currentMonthEnd = getMonthEnd(now);
+            
+            // Előző hónap
+            const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const prevMonthStart = getMonthStart(prevMonthDate);
+            const prevMonthEnd = getMonthEnd(prevMonthDate);
 
-            consumptionData.forEach(item => {
-                const cost = item.amount * item.price;
-                totalCost += cost;
-
-                switch (item.type) {
-                    case 'electric':
-                        totalElectric += item.amount;
-                        break;
-                    case 'gas':
-                        totalGas += item.amount;
-                        break;
-                    case 'water':
-                        totalWater += item.amount;
-                        break;
-                }
-            });
-
-            document.getElementById('total-electric').textContent = `${totalElectric.toFixed(1)} egység`;
-            document.getElementById('total-gas').textContent = `${totalGas.toFixed(1)} egység`;
-            document.getElementById('total-water').textContent = `${totalWater.toFixed(1)} egység`;
+            // Adatstruktúrák inicializálása
+            const summary = {
+                current: { cost: 0, electric: 0, gas: 0, water: 0 },
+                previous: { cost: 0, electric: 0, gas: 0, water: 0 }
+            };
 
             const currencySymbol = currentSettings.currency || defaultSettings.currency;
-            document.getElementById('estimated-cost').textContent = `${totalCost.toLocaleString('hu-HU', { maximumFractionDigits: 0 })} ${currencySymbol}`;
+            const baseCost = currentSettings.baseCost || defaultSettings.baseCost;
+
+            // Havi alapdíj hozzáadása az összes költséghez
+            summary.current.cost += baseCost;
+            summary.previous.cost += baseCost;
+
+            // Adatok feldolgozása
+            consumptionData.forEach(item => {
+                const cost = item.amount * item.price;
+                const date = item.date;
+                let target = null;
+                
+                // Aktuális hónap
+                if (date >= currentMonthStart && date <= currentMonthEnd) {
+                    target = summary.current;
+                } 
+                // Előző hónap
+                else if (date >= prevMonthStart && date <= prevMonthEnd) {
+                    target = summary.previous;
+                }
+
+                if (target) {
+                    target.cost += cost;
+                    target[item.type] += item.amount;
+                }
+            });
+            
+            // Fő Kimutatás Frissítése
+            const renderComparison = (currentValue, prevValue, unit = currencySymbol, isCost = false) => {
+                const diff = currentValue - prevValue;
+                let percentage = 0;
+                let colorClass = 'text-gray-600';
+                let arrow = '';
+
+                if (prevValue > 0) {
+                    percentage = (diff / prevValue) * 100;
+                } else if (prevValue === 0 && currentValue > 0) {
+                    percentage = 100; // Végtelen, de 100% elegendő
+                }
+                
+                if (diff > 0) {
+                    // Ha költség, a növekedés rossz (piros). Ha fogyasztás, a növekedés rossz (piros).
+                    colorClass = 'text-red-600';
+                    arrow = '▲';
+                } else if (diff < 0) {
+                    // Ha költség, a csökkenés jó (zöld). Ha fogyasztás, a csökkenés jó (zöld).
+                    colorClass = 'text-green-600';
+                    arrow = '▼';
+                }
+
+                const diffText = diff === 0 ? '±0%' : `${arrow} ${Math.abs(percentage).toFixed(0)}%`;
+                const trendText = `<span class="${colorClass} font-semibold text-sm ml-2">${diffText}</span>`;
+                
+                const currentFormatted = currentValue.toLocaleString('hu-HU', { maximumFractionDigits: isCost ? 0 : 1 });
+
+                return `
+                    <div class="card p-4">
+                        <p class="text-lg font-bold text-gray-800">${currentFormatted} ${unit}</p>
+                        <p class="text-sm text-gray-500 mt-1">
+                            ${isCost ? 'Teljes Havi Költség' : 'Összfogyasztás'} 
+                            ${trendText}
+                        </p>
+                    </div>
+                `;
+            };
+
+            const typeNames = { electric: 'Villany', gas: 'Gáz', water: 'Víz' };
+            const summaryHtml = `
+                ${renderComparison(summary.current.cost, summary.previous.cost, currencySymbol, true)}
+                ${Object.keys(typeNames).map(type => `
+                    ${renderComparison(summary.current[type], summary.previous[type], typeNames[type], false)}
+                `).join('')}
+            `;
+            
+            document.getElementById('monthly-summary').innerHTML = summaryHtml;
+            
+            // Frissíti a pénznem egységet a fogyasztás űrlapon
+            document.getElementById('currency-unit-display').textContent = currencySymbol;
         };
         
         // Modal kezelő változók
         let itemToDelete = null;
 
-        // 6. Fogyasztási lista megjelenítése (Törlés gombbal)
+        // 7. Fogyasztási lista megjelenítése (Törlés gombbal)
         const renderConsumptionList = () => {
             const listElement = document.getElementById('consumption-list');
             listElement.innerHTML = ''; // Lista törlése
-
-            // Rendezés dátum szerint, legújabb elöl
-            const sortedData = consumptionData.sort((a, b) => b.date - a.date);
-
-            if (sortedData.length === 0) {
+            
+            if (consumptionData.length === 0) {
                 listElement.innerHTML = '<li class="text-gray-500 italic p-3">Még nem rögzített fogyasztást.</li>';
                 return;
             }
 
-            sortedData.forEach(item => {
+            consumptionData.forEach(item => {
                 const dateString = item.date.toLocaleDateString('hu-HU');
                 const cost = (item.amount * item.price).toFixed(0);
                 const currency = currentSettings.currency || defaultSettings.currency;
@@ -511,7 +661,7 @@
             });
         };
 
-        // 7. Fogyasztás törlése (Modal + Firebase)
+        // 8. Fogyasztás törlése (Modal + Firebase)
         const deleteConsumption = async (docId) => {
             if (!isAuthReady || !userId) {
                 showMessage('consumption-message-box', 'Hiba: A felhasználó nincs hitelesítve.', true);
@@ -528,7 +678,7 @@
             }
         };
 
-        // 8. Modal logikája
+        // 9. Modal logikája
         const confirmModal = document.getElementById('confirm-modal');
         const modalConfirmBtn = document.getElementById('modal-confirm-btn');
         const modalCancelBtn = document.getElementById('modal-cancel-btn');
@@ -551,20 +701,19 @@
             hideConfirmModal();
         });
 
-        // 9. Accordion (Összecsukható) logika
+        // 10. Accordion (Összecsukható) logika
         const settingsHeader = document.getElementById('settings-accordion-header');
         const settingsContent = document.getElementById('settings-accordion-content');
         const settingsIcon = document.getElementById('settings-accordion-icon');
         
-        // Alapértelmezett állapot (kinyitva hagyjuk, de a kérés az, hogy összecsukható legyen)
-
         settingsHeader.addEventListener('click', () => {
             settingsContent.classList.toggle('hidden');
             settingsIcon.classList.toggle('rotated');
         });
 
-        // Dátum mező alapértelmezett értéke a mai dátum
+        // 11. Kezdeti beállítások
         document.getElementById('consumption-date').valueAsDate = new Date();
+        updatePricePerUnit(); // Utolsó ár betöltése az űrlapra a kezdeti betöltéskor
 
     </script>
 </body>
