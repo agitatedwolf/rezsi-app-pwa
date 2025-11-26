@@ -39,7 +39,7 @@
     <script type="module">
         // Firebase importok a Canvas környezethez
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Firebase konfiguráció és App ID (globális változók a Canvas környezetből)
@@ -48,7 +48,7 @@
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         document.getElementById('app-id-display').textContent = appId;
-        setLogLevel('debug'); // Hibakeresési naplózás bekapcsolása
+        setLogLevel('debug'); // Hibakeresési naplózás bekapcsolása (Fontos!)
 
         let app;
         let db;
@@ -75,6 +75,7 @@
                 return;
             }
 
+            // Nyilvános tesztútvonal használata a jogosultságok ellenőrzésére
             const testCollectionPath = `/artifacts/${appId}/public/data/connection_test`;
             const docRef = doc(collection(db, testCollectionPath), "test_doc_" + Date.now());
             
@@ -86,24 +87,32 @@
             };
 
             try {
-                // setDoc használata az egyértelműség kedvéért
                 await setDoc(docRef, testData);
                 
                 // Siker
                 console.log("SIKERES ÍRÁS: Tesztdokumentum elmentve a Firestore-ba.", docRef.path);
-                displayResult(`SIKERES KAPCSOLAT: Tesztdokumentum elmentve a Firestore-ba (${docRef.id}).`, true);
+                displayResult(`SIKERES KAPCSOLAT: Tesztdokumentum elmentve a Firestore-ba (${docRef.id}). Ez azt jelenti, hogy az inicializálás és a jogosultságok rendben vannak.`, true);
 
             } catch (error) {
                 // Hiba
                 console.error("HIBA A KAPCSOLATBAN: Nem sikerült írni a Firestore-ba.", error);
-                displayResult(`HIBA A KAPCSOLATBAN: Nem sikerült írni a Firestore-ba. Nézd meg a konzolt a részletekért. Hiba: ${error.code || error.message}`, false);
+                
+                let errorMessage = `HIBA A KAPCSOLATBAN: Nem sikerült írni a Firestore-ba. Hiba: ${error.code || error.message}.`;
+                
+                if (error.code === 'permission-denied') {
+                    errorMessage = `JOGOSULTSÁG ELUTASÍTVA (PERMISSION-DENIED). Ez azt jelenti, hogy a Firebase inicializálva van, a bejelentkezés megtörtént, de a FIRESTORE BIZTONSÁGI SZABÁLYAI megakadályozzák az írást a(z) "${testCollectionPath}" útvonalra. Kérjük, ellenőrizze a szabályokat!`;
+                } else if (error.code === 'unavailable' || error.code === 'internal') {
+                    errorMessage = `SZERVER HIBA (UNAVAILABLE/INTERNAL). Ideiglenes szolgáltatás probléma, vagy a konfigurációban lehet hiba.`;
+                }
+                
+                displayResult(errorMessage, false);
             }
         }
 
         // Firebase inicializálás és autentikáció
         async function initAuthAndFirebase() {
-            if (Object.keys(firebaseConfig).length === 0) {
-                displayResult("HIBA: A Firebase konfiguráció hiányzik. Ellenőrizd a beállításokat.", false);
+            if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.projectId) {
+                displayResult("HIBA: A Firebase konfiguráció hiányzik. Ellenőrizd a beállításokat. A Canvas nem adott meg konfigurációt.", false);
                 return;
             }
 
@@ -115,11 +124,11 @@
                 // Autentikáció kezelése
                 let user;
                 if (initialAuthToken) {
-                    // Egyedi tokenes bejelentkezés
+                    console.log("Autentikáció: Egyedi tokennel próbál bejelentkezni.");
                     const userCredential = await signInWithCustomToken(auth, initialAuthToken);
                     user = userCredential.user;
                 } else {
-                    // Anonim bejelentkezés
+                    console.log("Autentikáció: Egyedi token hiányában anonim módon próbál bejelentkezni.");
                     const userCredential = await signInAnonymously(auth);
                     user = userCredential.user;
                 }
@@ -132,14 +141,15 @@
                 document.getElementById('run-test-btn').textContent = "Kapcsolat Tesztelése (Firestore Írás)";
 
 
-                console.log("Firebase inicializálva és bejelentkezve. UID:", userId);
+                console.log("Firebase inicializálva és sikeresen bejelentkezve. UID:", userId);
+                displayResult("Inicializálás és bejelentkezés SIKERES. Most már futtathatja az írási tesztet.", true);
 
             } catch (error) {
                 console.error("Kritikus hiba az inicializálás/autentikáció során:", error);
                 document.getElementById('user-id').textContent = "HIBA: Lásd a konzolt.";
                 document.getElementById('run-test-btn').disabled = true;
                 document.getElementById('run-test-btn').textContent = "Inicializálási HIBA";
-                displayResult(`KRITIKUS HIBA az inicializálás során: ${error.code || error.message}`, false);
+                displayResult(`KRITIKUS HIBA az inicializálás/autentikáció során: ${error.code || error.message}.`, false);
             }
         }
 
