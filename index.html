@@ -85,14 +85,16 @@
         function renderSettings() { console.log('LOG: 08 - renderSettings futott.'); } 
 
 
-        // --- renderApp() - BIZTONSÁGOS VÁZ ---
+        // --- renderApp() - BIZTONSÁGOS VÁZ, KÉNYSZERÍTETT ELREJTÉSSEL ---
         function renderApp() {
             console.log("LOG: 09 - renderApp elindult.");
             const statusDiv = document.getElementById('app-status');
+            
             if (statusDiv) {
-                statusDiv.classList.add('hidden'); // ELTŰNIK A BETÖLTÉS KÉPERNYŐ
+                // KÉNYSZERÍTETT ELREJTÉS: Közvetlen stílus módosítás!
+                statusDiv.style.display = 'none'; 
+                console.log("LOG: 10 - Betöltő képernyő ELREJTVE (style.display = 'none').");
             }
-            console.log("LOG: 10 - Betöltő képernyő elrejtve.");
 
             const appContainer = document.getElementById('app-container');
             if (appContainer) { 
@@ -104,6 +106,8 @@
                 `;
                 appContainer.classList.remove('hidden'); // MEGJELENIK A FŐ TARTALOM
             }
+            
+            // ITT KELL MEGHÍVNI AZ EREDETI RENDERELÉSI FÜGGVÉNYEKET (pl.: renderBillList(); renderSummaryChart();)
         }
 
 
