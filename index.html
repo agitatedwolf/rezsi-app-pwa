@@ -43,12 +43,12 @@
         let metersSubscription = null; 
         let recurringBillsCache = [];
         let meterReadingsCache = []; 
-        let billsCache = []; // Hozzáadva a stabil működéshez
-        let recurringBills = []; // Hozzáadva a stabil működéshez
-        let currentMeters = []; // Hozzáadva a stabil működéshez
+        let billsCache = [];
+        let recurringBills = [];
+        let currentMeters = [];
 
 
-        // ___ SEGÉDFÜGGVÉNYEK (EZT PÓTOLD AZ EREDETI KÓDBÓL) ___
+        // ___ SEGÉDFÜGGVÉNYEK VÁZAI (EZEKET PÓTOLD AZ EREDETI KÓDBÓL) ___
         window.formatHUF = (amount) => { return amount; };
         window.formatHUFNoCurrency = (amount) => { return amount; };
         window.formatDate = (timestamp) => { return timestamp; };
@@ -80,10 +80,10 @@
             if (!currentMonthId) {
                 currentMonthId = new Date().toISOString().substring(0, 7);
             }
-            // renderSettings() - Ezt a függvényt kell pótolni az eredeti kódból, ha létezett!
+            // renderSettings() - Pótold az eredeti kódból!
         }
         
-        // --- PÓTOLANDÓ FÜGGVÉNYEK VÁZAI ---
+        // --- PÓTOLANDÓ ADATBETÖLTŐ FÜGGVÉNYEK VÁZAI (ASYNC!) ---
         async function loadBills() { billsCache = []; } // Pótold az eredeti kóddal
         async function loadRecurringBills() { recurringBills = []; } // Pótold az eredeti kóddal
         async function loadMeterReadings() { currentMeters = []; } // Pótold az eredeti kóddal
@@ -101,8 +101,8 @@
             if (appContainer) { 
                 appContainer.innerHTML = `
                     <h1 class="text-2xl font-bold text-blue-600 mb-4">Üdvözlünk a Rezsi Nyilvántartóban!</h1>
-                    <p class="text-gray-700">A Firebase kapcsolat sikeresen felépült.</p>
-                    <p class="mt-4 font-bold text-red-500">Kérlek, pótold a renderApp() függvény tartalmát az eredeti kódodból!</p>
+                    <p class="text-gray-700">A Firebase kapcsolat sikeresen felépült, és az adatok bejöttek. Már csak a felület hiányzik!</p>
+                    <p class="mt-4 font-bold text-red-500">Kérlek, pótold a renderApp() függvény és a többi függő függvény (pl. renderBillList) tartalmát az eredeti kódodból!</p>
                 `;
                 appContainer.classList.remove('hidden');
             }
