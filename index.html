@@ -33,13 +33,30 @@
         .main-container {
             max-width: 600px; /* Szélesség korlátozása nagy képernyőn */
         }
-        /* Egyedi stílus a hibajegy 4. pontjához: Modálok egymásra helyezése */
+        /* Egyedi stílus a 4. hibajegyhez: Modálok egymásra helyezése */
         #manage-recurring-modal { z-index: 55; }
         #add-recurring-modal { z-index: 60; } /* Ez legyen felül */
         #confirmation-modal { z-index: 70; } /* A megerősítés mindig felül */
+
+        /* A betöltés állapotának kezelésére szolgáló stílus */
+        #loading-overlay {
+            z-index: 100;
+            background-color: #f0f4f8;
+        }
     </style>
 </head>
 <body class="p-4 sm:p-6 md:p-8">
+    
+    <!-- Betöltő overlay -->
+    <div id="loading-overlay" class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="text-center">
+            <svg class="animate-spin h-10 w-10 text-blue-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p id="loading-overlay-text" class="text-gray-700 font-medium">Adatok betöltése...</p>
+        </div>
+    </div>
 
     <div class="main-container mx-auto bg-white p-6 sm:p-8 rounded-2xl shadow-xl">
         <header class="mb-6 border-b pb-4">
@@ -47,7 +64,7 @@
                 <svg class="w-8 h-8 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
                 Rezsi Nyilvántartó
             </h1>
-            <p id="user-info" class="text-xs text-gray-500 mt-1">Anonim felhasználó</p>
+            <p id="user-info" class="text-xs text-gray-500 mt-1">Azonosítód: Betöltés alatt...</p>
         </header>
 
         <!-- Hónap Választó és Műveletek -->
@@ -61,7 +78,7 @@
                 <button onclick="createMonth()" class="w-full sm:w-auto px-4 py-2 bg-green-600 text-white font-medium rounded-lg shadow-md hover:bg-green-700 transition duration-150 ease-in-out">
                     + Új Hónap
                 </button>
-                <!-- 2. Hiba Javítása: deleteMonth funkció hívása -->
+                <!-- 2. Hiba Javítása: deleteMonth funkció hívása a megerősítő modálba visz -->
                 <button onclick="confirmMonthDeletion()" class="w-full sm:w-auto px-4 py-2 bg-red-600 text-white font-medium rounded-lg shadow-md hover:bg-red-700 transition duration-150 ease-in-out">
                     Hónap Törlése
                 </button>
@@ -136,8 +153,8 @@
                 </div>
 
                 <div class="mb-6">
-                    <label for="category-type" class="block text-sm font-medium text-gray-700 mb-1">Mérhető Kategória:</label>
-                    <!-- 3. Hiba Javítása: A kategória lista helye -->
+                    <label for="category-type" class="block text-sm font-medium text-gray-700 mb-1">Mérhető Kategória (Sablon):</label>
+                    <!-- 3. Hiba Javítása: A mérhető kategória lista a sablonokból töltődik -->
                     <select id="category-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500">
                         <option value="">Nincs mérhető tétel</option>
                     </select>
@@ -152,6 +169,7 @@
     </div>
 
     <!-- 2. Mérőállás Rögzítése Modál -->
+    <!-- (Ez jelenleg nincs teljesen implementálva, de a kód meghagyja a lehetőséget) -->
     <div id="add-measurement-modal" class="modal-overlay hidden fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white p-6 rounded-xl shadow-2xl w-full max-w-lg">
             <h2 class="text-2xl font-bold text-blue-600 mb-4">Mérőállás Rögzítése</h2>
@@ -178,7 +196,7 @@
     </div>
 
     <!-- 3. Ismétlődő tételek kezelése Modál (Sablonok) -->
-    <!-- 4. Hiba Javítása: Modál z-index növelése, hogy felül legyen a fő modál -->
+    <!-- 4. Hiba Javítása: Modál z-index növelése -->
     <div id="manage-recurring-modal" class="modal-overlay hidden fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white p-6 rounded-xl shadow-2xl w-full max-w-xl">
             <div class="flex justify-between items-center mb-4 border-b pb-2">
@@ -244,115 +262,136 @@
 
     <!-- Firebase és Kód -->
     <script type="module">
-        // Global variables for Canvas environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        if (!firebaseConfig) {
-            console.error("Firebase configuration is missing. Cannot initialize app.");
-        }
-        
-        // Firebase imports
+        // --- Firebase Importok ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, runTransaction, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global Firebase and state variables
+        // Global Firebase és állapotváltozók
         let app;
         let db;
         let auth;
-        let userId = 'anon-default';
+        let userId = null; // A felhasználó ID-je
+        let appId = null; // Az alkalmazás ID-je
         let currentMonthId = null;
         let allMonths = [];
         let recurringItems = [];
+        let isAuthReady = false;
 
-        // Hiba esetén Debug logok bekapcsolása (ajánlott)
-        setLogLevel('Debug');
+        // --- Firebase Inicializálás és Hitelesítés (A kritikus rész) ---
+        
+        function hideLoadingOverlay() {
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
 
-        // --- Firebase Inicializálás és Hitelesítés ---
-        if (firebaseConfig) {
+        try {
+            // Hiba esetén Debug logok bekapcsolása (ajánlott)
+            setLogLevel('Debug');
+            
+            // Konfiguráció betöltése
+            if (typeof __firebase_config === 'undefined' || !__firebase_config) {
+                console.error("Hiba: A Firebase konfiguráció (__firebase_config) hiányzik.");
+                document.getElementById('loading-overlay-text').textContent = "Hiba: Hiányzó Firebase konfiguráció.";
+                return;
+            }
+
+            const firebaseConfig = JSON.parse(__firebase_config);
+            
+            // App ID betöltése
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+            // Firebase inicializálás
             app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
             
             // Hitelesítési állapot figyelése
-            onAuthStateChanged(auth, (user) => {
+            onAuthStateChanged(auth, async (user) => {
                 if (user) {
                     userId = user.uid;
-                    document.getElementById('user-info').textContent = `Felhasználó ID: ${userId}`;
+                    document.getElementById('user-info').textContent = `Azonosítód: ${userId}`;
+                    isAuthReady = true;
                     initializeDataListeners();
+                    hideLoadingOverlay();
                 } else {
-                    // Ha nincs token, anonim bejelentkezés
-                    if (initialAuthToken) {
-                         signInWithCustomToken(auth, initialAuthToken).catch(error => {
-                            console.error("Custom token sign-in failed. Falling back to anonymous.", error);
-                            signInAnonymously(auth).then(userCredential => {
-                                userId = userCredential.user.uid;
-                                document.getElementById('user-info').textContent = `Felhasználó ID: ${userId} (Anonim)`;
-                                initializeDataListeners();
-                            });
-                        });
-                    } else {
-                        signInAnonymously(auth).then(userCredential => {
-                            userId = userCredential.user.uid;
-                            document.getElementById('user-info').textContent = `Felhasználó ID: ${userId} (Anonim)`;
-                            initializeDataListeners();
-                        }).catch(error => {
-                            console.error("Anonymous sign-in failed:", error);
-                        });
+                    // Ha nincs bejelentkezve, megpróbáljuk hitelesíteni
+                    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                    
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Hitelesítési hiba:", error);
+                        document.getElementById('loading-overlay-text').textContent = "Hiba a hitelesítésben. Kérlek, indítsd újra.";
                     }
                 }
             });
+        } catch (error) {
+            console.error("Kritikus hiba a Firebase inicializálásakor:", error);
+            document.getElementById('loading-overlay-text').textContent = `Kritikus hiba: ${error.message}`;
         }
         
         // --- Firestore Segédfüggvények ---
         
         // Lekéri a kollekció útvonalát
         function getCollectionPath(collectionName) {
-            if (collectionName === 'recurringItems') {
-                // A sablonok (recurringItems) lehetnek privátak is, de jelenleg az egyszerűség kedvéért a felhasználóhoz kötjük
-                return `/artifacts/${appId}/users/${userId}/${collectionName}`;
+            if (!appId || !userId) {
+                console.error("App ID vagy User ID hiányzik a kollekció útvonalához.");
+                return null;
             }
+            // Privát adatok útvonala
             return `/artifacts/${appId}/users/${userId}/${collectionName}`;
         }
 
         // --- Adat Figyelők (onSnapshot) Inicializálása ---
         function initializeDataListeners() {
-            // 1. Hónapok figyelése
-            const monthsCollectionRef = collection(db, getCollectionPath('months'));
-            onSnapshot(monthsCollectionRef, (snapshot) => {
-                allMonths = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                allMonths.sort((a, b) => new Date(b.id) - new Date(a.id)); // Rendezés a legújabb hónap elől
-                renderMonthSelect();
-                
-                // Ha van kiválasztott hónap ID, de az már nem létezik, vagy nincs kiválasztva, állítsuk be a legújabbat
-                if (!currentMonthId || !allMonths.find(m => m.id === currentMonthId)) {
-                    currentMonthId = allMonths.length > 0 ? allMonths[0].id : null;
-                }
+            if (!isAuthReady || !db || !userId) return;
 
-                if (currentMonthId) {
-                    listenToCurrentMonthData(currentMonthId);
-                } else {
-                    // Ha nincs egyetlen hónap sem, ürítsük a nézetet
-                    document.getElementById('month-select').innerHTML = '<option value="">Nincs rögzített hónap</option>';
-                    document.getElementById('categories-list').innerHTML = '';
-                    updateSummary(0, 0);
-                }
-            }, (error) => {
-                console.error("Error listening to months:", error);
-            });
+            // 1. Hónapok figyelése
+            const monthsCollectionPath = getCollectionPath('months');
+            if (monthsCollectionPath) {
+                const monthsCollectionRef = collection(db, monthsCollectionPath);
+                onSnapshot(monthsCollectionRef, (snapshot) => {
+                    allMonths = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    // Rendezés a legújabb hónap elől (YYYY-MM string alapján)
+                    allMonths.sort((a, b) => b.id.localeCompare(a.id)); 
+                    renderMonthSelect();
+                    
+                    // Ha nincs kiválasztott hónap, vagy a kiválasztott már nem létezik, állítsuk be a legújabbat
+                    if (!currentMonthId || !allMonths.find(m => m.id === currentMonthId)) {
+                        currentMonthId = allMonths.length > 0 ? allMonths[0].id : null;
+                    }
+
+                    if (currentMonthId) {
+                        listenToCurrentMonthData(currentMonthId);
+                    } else {
+                        // Ha nincs egyetlen hónap sem
+                        document.getElementById('month-select').innerHTML = '<option value="">Nincs rögzített hónap</option>';
+                        document.getElementById('categories-list').innerHTML = '<p class="text-gray-500 p-4 bg-white rounded-lg shadow-sm">Kezdd azzal, hogy létrehozol egy új hónapot!</p>';
+                        updateSummary(0, 0);
+                    }
+                }, (error) => {
+                    console.error("Error listening to months:", error);
+                });
+            }
+
 
             // 2. Ismétlődő tételek figyelése
-            const recurringRef = collection(db, getCollectionPath('recurringItems'));
-            onSnapshot(recurringRef, (snapshot) => {
-                recurringItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderRecurringItemsList();
-                // Frissíti a mérhető kategória listát az Új Bejegyzés modálban
-                updateMeasurableCategorySelect(); 
-            }, (error) => {
-                console.error("Error listening to recurring items:", error);
-            });
+            const recurringItemsPath = getCollectionPath('recurringItems');
+            if (recurringItemsPath) {
+                const recurringRef = collection(db, recurringItemsPath);
+                onSnapshot(recurringRef, (snapshot) => {
+                    recurringItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    renderRecurringItemsList();
+                    // Frissíti a mérhető kategória listát az Új Bejegyzés modálban (3. Hiba Javítás)
+                    updateMeasurableCategorySelect(); 
+                }, (error) => {
+                    console.error("Error listening to recurring items:", error);
+                });
+            }
         }
 
         // 3. Aktuális hónap adatainak figyelése
@@ -362,8 +401,12 @@
             if (unsubscribeMonthData) {
                 unsubscribeMonthData();
             }
+            if (!db) return;
+            
+            const monthPath = getCollectionPath('months');
+            if (!monthPath) return;
 
-            const monthDocRef = doc(db, getCollectionPath('months'), monthId);
+            const monthDocRef = doc(db, monthPath, monthId);
             unsubscribeMonthData = onSnapshot(monthDocRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const monthData = docSnap.data();
@@ -371,8 +414,8 @@
                     updateSummary(monthData.totalSpent || 0, monthData.totalIncome || 0);
                 } else {
                     console.warn(`Month document ${monthId} not found.`);
-                    document.getElementById('categories-list').innerHTML = '<p class="text-gray-500">Nincs adat ehhez a hónaphoz.</p>';
-                    updateSummary(0, 0);
+                    // Ha a hónapot törölték, újrageneráljuk a hónapválasztót
+                    currentMonthId = null;
                 }
                 // Azonnal frissítjük a hónapválasztó értéket
                 document.getElementById('month-select').value = monthId;
@@ -429,16 +472,18 @@
             categories.sort((a, b) => a.name.localeCompare(b.name, 'hu'));
 
             categories.forEach((cat, index) => {
-                const isExpense = cat.type === 'expense';
+                const isExpense = cat.type === 'expense' || cat.type === 'measurable';
                 const valueColor = isExpense ? 'text-red-600' : 'text-green-600';
                 const sign = isExpense ? '-' : '+';
                 const typeLabel = cat.type === 'measurable' ? 'Mérhető' : (isExpense ? 'Kiadás' : 'Bevétel');
+                const recurringItemName = cat.recurringItemId ? recurringItems.find(r => r.id === cat.recurringItemId)?.name || 'ismeretlen' : '';
+                const recurringInfo = cat.recurringItemId ? `(Sablon: ${recurringItemName})` : '';
 
                 const item = `
                     <div class="flex justify-between items-center p-4 bg-white rounded-lg shadow-md border-l-4 ${isExpense ? 'border-red-500' : 'border-green-500'}">
                         <div>
                             <p class="text-base font-medium text-gray-800">${cat.name}</p>
-                            <p class="text-xs text-gray-500">${typeLabel} ${cat.recurringItemId ? `(Sablon: ${recurringItems.find(r => r.id === cat.recurringItemId)?.name || 'ismeretlen'})` : ''}</p>
+                            <p class="text-xs text-gray-500">${typeLabel} ${recurringInfo}</p>
                         </div>
                         <div class="flex items-center space-x-3">
                             <p class="text-lg font-semibold ${valueColor}">${sign} ${cat.value.toLocaleString('hu-HU')} Ft</p>
@@ -458,7 +503,7 @@
             list.innerHTML = '';
 
             if (recurringItems.length === 0) {
-                list.innerHTML = '<p class="text-gray-500 p-4 bg-gray-50 rounded-lg text-center">Nincs még rögzített sablon.</p>';
+                list.innerHTML = '<p class="text-gray-500 p-4 bg-gray-50 rounded-lg text-center">Nincs még rögzített sablon. Kattints az "+ Új Sablon" gombra!</p>';
                 return;
             }
 
@@ -493,11 +538,13 @@
         
         function formatMonthId(monthId) {
             const [year, month] = monthId.split('-');
+            // Mivel a monthId 'YYYY-MM' formátumú, a hónap 1-től indul.
+            // A Date konstruktorban a hónap 0-tól indul, ezért a `month - 1` kell.
             const date = new Date(year, month - 1, 1);
             return date.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' });
         }
 
-        function hideAllModals() {
+        window.hideAllModals = () => {
             document.querySelectorAll('.modal-overlay').forEach(modal => {
                 modal.classList.add('hidden');
             });
@@ -560,7 +607,7 @@
 
         // 1. Hiba Javítása: Új Hónap Létrehozása
         window.createMonth = async () => {
-            if (!userId) return console.error("User not authenticated.");
+            if (!userId || !db) return console.error("User not authenticated or DB not ready.");
 
             try {
                 // Kiszámítja a következő hónap ID-t (YYYY-MM formátum)
@@ -569,10 +616,11 @@
                 
                 if (lastMonthId) {
                     const [year, month] = lastMonthId.split('-').map(Number);
-                    // Dátum objektum létrehozása: a hónap 0-tól indul, így a hónap - 1
+                    // Dátum objektum létrehozása: a hónap 0-tól indul
                     const lastDate = new Date(year, month - 1, 1); 
                     
                     // Hozzáad egy hónapot: a következő hónap ID-jének kiszámítása
+                    // A hónap indexet növeljük, a JS automatikusan kezeli az évváltást.
                     nextDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1);
                 } else {
                     // Ha nincs még hónap, a jelenlegi hónapot használja
@@ -581,18 +629,25 @@
 
                 // YYYY-MM formátum kialakítása a nextDate-ből
                 const nextYear = nextDate.getFullYear();
-                const nextMonth = String(nextDate.getMonth() + 1).padStart(2, '0');
+                // month + 1 kell a helyes hónap számhoz, majd kiegészítjük 0-val (pl. 08)
+                const nextMonth = String(nextDate.getMonth() + 1).padStart(2, '0'); 
                 const nextMonthId = `${nextYear}-${nextMonth}`;
 
                 // Ellenőrzés: ha az azonosító már létezik
                 if (allMonths.some(m => m.id === nextMonthId)) {
+                    // Cseréljük az alert-et console.log-ra, vagy modálra, de most a biztonság kedvéért console.log
                     console.error("A hónap már létezik:", nextMonthId);
-                    alert(`A ${formatMonthId(nextMonthId)} hónap már létezik. Kérem, válasszon egyet a listából.`);
+                    document.getElementById('loading-overlay-text').textContent = `A ${formatMonthId(nextMonthId)} hónap már létezik.`;
+                    // Kicsi késleltetéssel eltüntetjük, hogy ne blokkolja a UI-t
+                    setTimeout(hideLoadingOverlay, 3000); 
                     return;
                 }
                 
                 // Új hónap dokumentum referencia
-                const monthRef = doc(db, getCollectionPath('months'), nextMonthId);
+                const monthPath = getCollectionPath('months');
+                if (!monthPath) return;
+
+                const monthRef = doc(db, monthPath, nextMonthId);
                 
                 // Létrehozza az új hónapot alap adatokkal
                 await setDoc(monthRef, {
@@ -615,7 +670,9 @@
         
         // Ismétlődő tételek alkalmazása az új hónapra
         async function applyRecurringItems(monthId) {
-            const monthRef = doc(db, getCollectionPath('months'), monthId);
+            const monthPath = getCollectionPath('months');
+            if (!monthPath) return;
+            const monthRef = doc(db, monthPath, monthId);
             
             await runTransaction(db, async (transaction) => {
                 const monthDoc = await transaction.get(monthRef);
@@ -626,6 +683,12 @@
                 let totalIncome = monthData.totalIncome || 0;
 
                 recurringItems.forEach(item => {
+                    // Nem adjuk hozzá azokat, amik mérhetőek, de nincs alapértékük, 
+                    // BIZTOSÍTVA az alapérték hozzáadását
+                    if (item.type === 'measurable' && item.value === 0) {
+                        return; // Kihagyjuk a 0 Ft alapdíjú mérhető sablonokat
+                    }
+
                     // Hozzáadja a sablon alapján a tételt
                     const newCategory = {
                         id: crypto.randomUUID(),
@@ -657,7 +720,10 @@
 
         // 2. Hiba Javítása: Hónap Törlésének Megerősítése és Törlése
         window.confirmMonthDeletion = () => {
-            if (!currentMonthId) return alert("Nincs kiválasztva hónap a törléshez.");
+            if (!currentMonthId) {
+                console.warn("Nincs kiválasztva hónap a törléshez.");
+                return;
+            }
 
             const monthName = formatMonthId(currentMonthId);
             document.getElementById('confirm-modal-title').textContent = `Hónap Törlése: ${monthName}`;
@@ -675,9 +741,12 @@
         };
 
         async function deleteMonth(monthId) {
-            if (!userId) return console.error("User not authenticated.");
+            if (!userId || !db) return console.error("User not authenticated or DB not ready.");
             try {
-                const monthRef = doc(db, getCollectionPath('months'), monthId);
+                const monthPath = getCollectionPath('months');
+                if (!monthPath) return;
+
+                const monthRef = doc(db, monthPath, monthId);
                 await deleteDoc(monthRef);
                 console.log("Hónap sikeresen törölve:", monthId);
                 
@@ -705,8 +774,12 @@
 
         // Kategória törlése
         async function deleteCategory(monthId, categoryIndex) {
-            if (!userId || !monthId) return console.error("Fizetőeszköz/Hónap ID hiányzik.");
-            const monthRef = doc(db, getCollectionPath('months'), monthId);
+            if (!userId || !monthId || !db) return console.error("User, Month ID, vagy DB hiányzik.");
+            
+            const monthPath = getCollectionPath('months');
+            if (!monthPath) return;
+
+            const monthRef = doc(db, monthPath, monthId);
 
             try {
                 await runTransaction(db, async (transaction) => {
@@ -749,15 +822,15 @@
         // Sablon mentése/frissítése
         document.getElementById('add-recurring-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (!userId) return console.error("User not authenticated.");
+            if (!userId || !db) return console.error("User not authenticated or DB not ready.");
 
             const id = document.getElementById('recurring-item-id').value;
             const name = document.getElementById('recurring-name').value;
             const value = parseInt(document.getElementById('recurring-value').value);
             const type = document.getElementById('recurring-type').value;
 
-            if (isNaN(value) || value <= 0) {
-                alert("Az értéknek pozitív számnak kell lennie.");
+            if (isNaN(value) || value < 0) { // Engedélyezzük a 0 értéket is, ha mérhető
+                console.warn("Az értéknek pozitív számnak vagy nullának kell lennie.");
                 return;
             }
 
@@ -768,7 +841,10 @@
                 date: serverTimestamp()
             };
             
-            const recurringRef = collection(db, getCollectionPath('recurringItems'));
+            const recurringItemsPath = getCollectionPath('recurringItems');
+            if (!recurringItemsPath) return;
+
+            const recurringRef = collection(db, recurringItemsPath);
 
             try {
                 if (id) {
@@ -811,9 +887,12 @@
 
         // Sablon törlése
         async function deleteRecurringItem(itemId) {
-            if (!userId) return console.error("User not authenticated.");
+            if (!userId || !db) return console.error("User not authenticated or DB not ready.");
             try {
-                const itemRef = doc(db, getCollectionPath('recurringItems'), itemId);
+                const recurringItemsPath = getCollectionPath('recurringItems');
+                if (!recurringItemsPath) return;
+
+                const itemRef = doc(db, recurringItemsPath, itemId);
                 await deleteDoc(itemRef);
                 console.log("Sablon sikeresen törölve:", itemId);
             } catch (error) {
@@ -841,7 +920,8 @@
                 measurableItems.forEach(item => {
                     const option = document.createElement('option');
                     option.value = item.id;
-                    option.textContent = `${item.name} (${item.value.toLocaleString('hu-HU')} Ft alapdíj)`;
+                    const valueDisplay = item.value > 0 ? ` (${item.value.toLocaleString('hu-HU')} Ft alapdíj)` : '';
+                    option.textContent = `${item.name}${valueDisplay}`;
                     select.appendChild(option);
                 });
             }
@@ -850,7 +930,10 @@
         // Új Bejegyzés mentése
         document.getElementById('add-category-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (!userId || !currentMonthId) return alert("Hiba: Nincs bejelentkezve, vagy nincs kiválasztva hónap.");
+            if (!userId || !currentMonthId || !db) {
+                console.error("Hiba: Nincs bejelentkezve, kiválasztott hónap, vagy DB.");
+                return;
+            }
 
             const form = e.target;
             const type = form.elements.type.value; // expense/income
@@ -859,13 +942,14 @@
             const recurringItemId = document.getElementById('category-type').value || null; // Mérhető kategória ID
 
             if (isNaN(value) || value <= 0) {
-                alert("Az értéknek pozitív számnak kell lennie.");
+                console.warn("Az értéknek pozitív számnak kell lennie.");
                 return;
             }
 
             let categoryType = type;
             if (recurringItemId) {
-                categoryType = 'measurable'; // Mérhető tételként rögzítjük
+                // Ha mérhető sablon van kiválasztva, felülírjuk a típust
+                categoryType = 'measurable'; 
             }
 
             const newCategory = {
@@ -877,7 +961,10 @@
                 date: serverTimestamp()
             };
 
-            const monthRef = doc(db, getCollectionPath('months'), currentMonthId);
+            const monthPath = getCollectionPath('months');
+            if (!monthPath) return;
+
+            const monthRef = doc(db, monthPath, currentMonthId);
 
             try {
                 await runTransaction(db, async (transaction) => {
@@ -914,14 +1001,6 @@
                 console.error("Hiba az új bejegyzés rögzítésekor: ", e);
             }
         };
-
-        // --- Mérőállás Műveletek ---
-
-        window.showAddMeasurementModal = async () => {
-            hideAllModals();
-            document.getElementById('add-measurement-modal').classList.remove('hidden');
-            // TODO: A mérhető kategória választó feltöltése és az előző állás lekérése
-        }
         
     </script>
 </body>
